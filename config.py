@@ -5,6 +5,9 @@ import socket
 if platform().startswith('Windows'):
     PLATFORM = 'Windows'
     DATA_DIR = 'd:/data/fetel-data'
+elif platform().startswith('Linux-3.10.0-957.el7.x86_64-x86_64-with-glibc2.10'):
+    PLATFORM = 'Tian He'
+    DATA_DIR = '/GPUFS/swufe_fxiao_5/adam/FET'
 elif platform().startswith('Linux'):
     PLATFORM = 'Linux'
     DATA_DIR = '/home/ubuntu/IFETEL'
