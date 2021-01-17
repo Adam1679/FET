@@ -69,7 +69,7 @@ def anchor_samples_to_model_samples(samples, mention_token_id, parent_type_ids_d
     model_samples = list()
     for i, sample in enumerate(samples):
         mstr = sample[1]
-        full_labels = utils.get_full_type_ids(sample[5], parent_type_ids_dict)
+        full_labels = utils.get_full_type_ids(sample[5], parent_type_ids_dict) # label包括parent type
         model_samples.append(get_labeled_model_sample(
             mention_id=sample[0], mention_str=mstr, mention_span=[sample[2], sample[3]], sent_tokens=sample[6],
             mention_token_id=mention_token_id, labels=full_labels))

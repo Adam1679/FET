@@ -5,10 +5,14 @@ import socket
 if platform().startswith('Windows'):
     PLATFORM = 'Windows'
     DATA_DIR = 'd:/data/fetel-data'
-else:
+elif platform().startswith('Linux'):
     PLATFORM = 'Linux'
-    DATA_DIR = '/data/hldai/fetel-data'
+    DATA_DIR = '/home/ubuntu/IFETEL'
+else:
+    PLATFORM = 'MACOX'
+    DATA_DIR = '/Users/adam/Desktop/FET/IFETEL'
 
+print(PLATFORM)
 TOKEN_UNK = '<UNK>'
 TOKEN_ZERO_PAD = '<ZPAD>'
 TOKEN_EMPTY_PAD = '<EPAD>'
@@ -29,13 +33,13 @@ WIKI_FETEL_WORDVEC_FILE = join(RES_DIR, 'enwiki-20151002-nef-wv-glv840B300d.pkl'
 WIKI_ANCHOR_SENTS_FILE = join(RES_DIR, 'enwiki-20151002-anchor-sents.txt')
 
 FIGER_FILES = {
-    'typed-wiki-mentions': join(DATA_DIR, 'Wiki/enwiki-20151002-anchor-mentions-typed.txt'),
-    'anchor-train-data-prefix': join(DATA_DIR, 'Wiki/enwiki20151002anchor-fetwiki-0_1'),
-    'type-vocab': join(DATA_DIR, 'Wiki/figer-type-vocab.txt'),
-    'wid-type-file': join(DATA_DIR, 'Wiki/wid-types-figer.txt'),
-    'fetel-test-mentions': join(DATA_DIR, 'Wiki/figer-fetel-test-mentions.json'),
-    'fetel-test-sents': join(DATA_DIR, 'Wiki/figer-fetel-test-sents.json'),
-    'noel-typing-results': join(DATA_DIR, 'Wiki/noel-fet-results-aaa-figer.txt')
+    'typed-wiki-mentions': join(DATA_DIR, 'Wiki/enwiki-20151002-anchor-mentions-typed.txt'),  # no data
+    'anchor-train-data-prefix': join(DATA_DIR, 'Wiki/enwiki20151002anchor-fetwiki-0_1'),  # no data
+    'type-vocab': join(DATA_DIR, 'Wiki/figer-type-vocab.txt'),  # yes
+    'wid-type-file': join(DATA_DIR, 'Wiki/wid-types-figer.txt'),  # yes
+    'fetel-test-mentions': join(DATA_DIR, 'Wiki/figer-fetel-test-mentions.json'),  # yes
+    'fetel-test-sents': join(DATA_DIR, 'Wiki/figer-fetel-test-sents.json'),  # yes
+    'noel-typing-results': join(DATA_DIR, 'Wiki/noel-fet-results-aaa-figer.txt')  # yes
 }
 
 BBN_FILES = {

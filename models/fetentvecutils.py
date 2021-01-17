@@ -16,13 +16,14 @@ class ELDirectEntityVec:
         self.rand_assign_rate = 1.1
         print('loading {} ...'.format(wid_types_file))
         logging.info('rand_assign_rate={}'.format(self.rand_assign_rate))
-        self.wid_types_dict = datautils.load_wid_types_file(wid_types_file, type_to_id_dict)
+        self.wid_types_dict = datautils.load_wid_types_file(wid_types_file, type_to_id_dict) #TODO：知识图谱里面的type? 还是说是已经map好了的type?
 
     def get_entity_vecs(self, mention_strs, prev_pred_results, min_popularity=10, true_wids=None,
                         filter_by_pop=False, person_type_id=None, person_l2_type_ids=None, type_vocab=None):
         all_entity_vecs = np.zeros((len(mention_strs), self.n_types), np.float32)
         el_sgns = np.zeros(len(mention_strs), np.float32)
         probs = np.zeros(len(mention_strs), np.float32)
+        # 通过字符串匹配的方式计算匹配的entity，通过图的出度入读来计算一个score
         candidates_list = self.el_system.link_all(mention_strs, prev_pred_results)
         # print(candidates_list)
         for i, el_candidates in enumerate(candidates_list):
@@ -36,7 +37,7 @@ class ELDirectEntityVec:
             if types is None:
                 continue
 
-            probs[i] = mstr_target_cnt / (sum([cand[1] for cand in el_candidates]) + 1e-7)
+            probs[i] = mstr_target_cnt / (sum([cand[1] for cand in el_candidates]) + 1e-7)  #( 41 x 1)
             el_sgns[i] = 1
             for type_id in types:
                 all_entity_vecs[i][type_id] = 1

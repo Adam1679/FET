@@ -12,7 +12,7 @@ def get_seqs_torch_input(device, seqs):
 
 def get_len_sorted_context_seqs_input(device, context_seqs, mention_token_idxs):
     data_tups = list(enumerate(zip(context_seqs, mention_token_idxs)))
-    data_tups.sort(key=lambda x: -len(x[1][0]))
+    data_tups.sort(key=lambda x: -len(x[1][0])) # 根据context长度来sort
     seqs = [x[1][0] for x in data_tups]
     mention_token_idxs = [x[1][1] for x in data_tups]
     idxs = [x[0] for x in data_tups]

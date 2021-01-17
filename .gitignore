@@ -3,10 +3,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+Wiki/*
+BBN/*
+res/*
 # C extensions
 *.so
-
+runs
+.DS_Store
 # Distribution / packaging
 .Python
 build/

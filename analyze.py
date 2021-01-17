@@ -10,13 +10,11 @@ from el import simpleel
 import config
 
 
-def train_model(args):
-    global writer
+def train_model():
     batch_size = 256
     dropout = 0.5
     context_lstm_hidden_dim = 250
-    # type_embed_dim = 500
-    type_embed_dim = 32
+    type_embed_dim = 500
     pred_mlp_hdim = 500
     n_iter = 15
     lr = 0.001
@@ -56,7 +54,7 @@ def train_model(args):
     el_entityvec = fetentvecutils.ELDirectEntityVec(gres.n_types, gres.type_id_dict, el_system, datafiles['wid-type-file'])
 
     logging.info('dataset={} {}'.format(dataset, data_prefix))
-    fetelexp.train_fetel(writer, device, gres, el_entityvec, train_data_pkl, dev_data_pkl, test_mentions_file, datafiles['fetel-test-sents'],
+    fetelexp.eval_data(device, gres, el_entityvec, train_data_pkl, dev_data_pkl, test_mentions_file, datafiles['fetel-test-sents'],
         test_noel_preds_file=noel_preds_file, type_embed_dim=type_embed_dim,
         context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
         dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
@@ -67,10 +65,6 @@ def train_model(args):
 if __name__ == '__main__':
     import random
     import argparse
-    from torch.utils.tensorboard import SummaryWriter
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--comment', '-m', required=True, type=str)
-    args = parser.parse_args()
     torch.random.manual_seed(config.RANDOM_SEED)
     np.random.seed(config.NP_RANDOM_SEED)
     random.seed(config.PY_RANDOM_SEED)
@@ -80,5 +74,4 @@ if __name__ == '__main__':
     init_universal_logging(log_file, mode='a', to_stdout=True)
 
     device = torch.device('cuda') if torch.cuda.device_count() > 0 else torch.device('cpu')
-    writer = SummaryWriter ("runs/{}".format (args.comment))
-    train_model(args)
+    train_model()
