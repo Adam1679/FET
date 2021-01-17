@@ -1,7 +1,8 @@
-import torch
-from torch import nn
-import torch.nn.functional as F
 import numpy as np
+import torch
+import torch.nn.functional as F
+from torch import nn
+
 from models import modelutils
 
 
@@ -69,7 +70,8 @@ class BaseResModel(nn.Module):
 
         x = self.embedding_layer(word_id_seqs)
         # x = F.dropout(x, self.dropout, training)
-        x = torch.nn.utils.rnn.pack_padded_sequence(x, lens, batch_first=True)
+        x = torch.nn.utils.rnn.pack_padded_sequence (x, lens.cpu () if torch.version.startswith ('1.7.1') else lens,
+                                                     batch_first=True)
         lstm_output1, self.context_hidden1 = self.context_lstm1(x, self.context_hidden1)
         # lstm_output1 = self.dropout_layer(lstm_output1)
         lstm_output2, self.context_hidden2 = self.context_lstm2(lstm_output1, self.context_hidden2)
