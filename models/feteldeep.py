@@ -70,7 +70,8 @@ class BaseResModel(nn.Module):
 
         x = self.embedding_layer(word_id_seqs)
         # x = F.dropout(x, self.dropout, training)
-        x = torch.nn.utils.rnn.pack_padded_sequence (x, lens.cpu () if torch.version.startswith ('1.7.1') else lens,
+        x = torch.nn.utils.rnn.pack_padded_sequence (x, lens.cpu () if torch.version.__version__.startswith (
+            '1.7') else lens,
                                                      batch_first=True)
         lstm_output1, self.context_hidden1 = self.context_lstm1(x, self.context_hidden1)
         # lstm_output1 = self.dropout_layer(lstm_output1)
