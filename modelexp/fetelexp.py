@@ -1,8 +1,8 @@
 import logging
-import time
 from typing import List
 
 import numpy as np
+import time
 import torch
 
 from modelexp import exputils
@@ -226,7 +226,7 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
     if person_type_id is not None:
         l2_person_type_ids = __get_l2_person_type_ids(gres.type_vocab)
         person_loss_vec = exputils.get_person_type_loss_vec(
-            l2_person_type_ids, gres.n_types, per_penalty, model.device)
+            l2_person_type_ids, gres.n_types, per_penalty, device)
 
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
@@ -255,14 +255,14 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
         model.train()
 
         (context_token_seqs, mention_token_idxs, mstrs, mstr_token_seqs, y_true
-         ) = exputils.get_mstr_cxt_label_batch_input(model.device, gres.n_types, batch_samples)
+         ) = exputils.get_mstr_cxt_label_batch_input (device, gres.n_types, batch_samples)
 
         if use_entity_vecs:
             for i in range(entity_vecs.shape[0]):
                 if np.random.uniform() < nil_rate:
                     entity_vecs[i] = np.zeros(entity_vecs.shape[1], np.float32)
-            el_probs = torch.tensor(el_probs, dtype=torch.float32, device=model.device)
-            entity_vecs = torch.tensor(entity_vecs, dtype=torch.float32, device=model.device)
+            el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
+            entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
         else:
             entity_vecs = None
         logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs)
@@ -278,12 +278,12 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
         if step % 1000 == 0:
             acc_tr, pacc_tr = -1, -1
             acc_v, pacc_v, _, _, dev_results = eval_fetel(
-                gres, model, dev_samples, dev_entity_vecs, dev_el_probs, eval_batch_size,
+                device, gres, model, dev_samples, dev_entity_vecs, dev_el_probs, eval_batch_size,
                 use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
                 true_labels_dict=dev_true_labels_dict)
 
             acc_t, _, maf1, mif1, test_results = eval_fetel(
-                gres, model, test_samples, test_entity_vecs, test_el_probs, eval_batch_size,
+                device, gres, model, test_samples, test_entity_vecs, test_el_probs, eval_batch_size,
                 use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
                 true_labels_dict=test_true_labels_dict)
 
@@ -315,7 +315,8 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
             losses = list()
 
 
-def eval_fetel(gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs, batch_size=32,
+def eval_fetel(device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
+               batch_size=32,
                use_entity_vecs=True, single_type_path=False, true_labels_dict=None):
     model.eval()
     n_batches = (len(samples) + batch_size - 1) // batch_size
@@ -330,9 +331,9 @@ def eval_fetel(gres: exputils.GlobalRes, model, samples: List[ModelSample], enti
         if use_entity_vecs:
             # entity_vecs, el_sgns = __get_entity_vecs_for_samples(el_entityvec, batch_samples, noel_pred_results)
             entity_vecs_batch = torch.tensor(entity_vecs[batch_beg:batch_end], dtype=torch.float32,
-                                             device=model.device)
-            # el_sgns_batch = torch.tensor(el_sgns[batch_beg:batch_end], dtype=torch.float32, device=model.device)
-            el_probs_batch = torch.tensor(el_probs[batch_beg:batch_end], dtype=torch.float32, device=model.device)
+                                             device=device)
+            # el_sgns_batch = torch.tensor(el_sgns[batch_beg:batch_end], dtype=torch.float32, device=device)
+            el_probs_batch = torch.tensor (el_probs[batch_beg :batch_end], dtype=torch.float32, device=device)
         with torch.no_grad():
             logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs,
                            entity_vecs_batch, el_probs_batch)
