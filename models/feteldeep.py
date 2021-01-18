@@ -186,11 +186,10 @@ class CopyMode(nn.Module):
         layers = []
         if not use_mlp :
             layers.append (nn.Dropout(dp))
-            layers.append (nn.Linear (input_size+1, out_size, bias=False))
-            # layers.append (nn.Tanh ())
+            layers.append (nn.Linear (input_size, out_size, bias=False))
         else :
             mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-            layers.append (nn.Linear (input_size+1, mlp_hidden_dim))
+            layers.append (nn.Linear (input_size, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
             layers.append (nn.Dropout (dp))
@@ -199,22 +198,29 @@ class CopyMode(nn.Module):
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
             layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, out_size))
-            # layers.append (nn.Tanh ())
 
         self.fc = nn.Sequential (*layers)
 
-    def forward(self, x, entity_vecs, type_emb, scores):
-        """x: (256, 800)
-           entity_vecs: (B, n_type)
-           type_emb: (E, O)
-        """
-        x = torch.cat ((x, scores.view (-1, 1)), dim=1)
-        x = self.fc(x)
-        type_embed_dim, n_types = type_emb.size()
+    # def forward(self, x, entity_vecs, type_emb):
+    #     """x: (256, 800)
+    #        entity_vecs: (B, n_type)
+    #        type_emb: (emb_size, n_type)
+    #     """
+    #     x = self.fc(x)
+    #     type_embed_dim, n_types = type_emb.size()
+    #     logits = torch.matmul (x.view (-1, 1, type_embed_dim),
+    #                            type_emb.view (-1, type_embed_dim, n_types))
+    #     logits = logits.view (-1, n_types)
+    #     return logits * entity_vecs
+
+    def forward(self, x, entity_vecs, type_emb) :
+        type_embed_dim, n_types = type_emb.size ()
+        entity_vecs = entity_vecs.unsqueeze (dim=1)  # (B, 1, n_type) * (emb_size, n_type) -> (B, emb_size, n_type)
+        x = (entity_vecs * type_emb).mean (dim=2)
         logits = torch.matmul (x.view (-1, 1, type_embed_dim),
                                type_emb.view (-1, type_embed_dim, n_types))
         logits = logits.view (-1, n_types)
-        return logits * entity_vecs # [-1, 1] + (0, 1) -> [-1, 2]
+        return logits
 
 
 class GenerationMode(nn.Module):
@@ -260,10 +266,10 @@ class NoName(BaseResModel):
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         self.copy_mode = CopyMode(linear_map_input_dim, type_embed_dim, dp=dropout)
         self.generate_mode = GenerationMode(linear_map_input_dim, type_embed_dim, dp=dropout)
-        self.alpha = nn.Sequential(nn.Linear(linear_map_input_dim, 256),
-                                   nn.Tanh(),
-                                   nn.Linear(256, 1),
-                                   nn.Sigmoid())
+        self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1, 256),
+                                    nn.Tanh(),
+                                    nn.Linear(256, 1),
+                                    nn.Sigmoid())
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs):
         """
@@ -291,9 +297,10 @@ class NoName(BaseResModel):
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output), dim=1))
-        a = self.copy_mode(cat_output, entity_vecs, self.type_embeddings, el_probs)
+        a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
         b = self.generate_mode(cat_output, self.type_embeddings)
-        r = self.alpha(cat_output)
+        score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
+        r = self.alpha (score)
         logits = r * a + (1-r) * b
         logits = logits.view(-1, self.n_types)
         return logits

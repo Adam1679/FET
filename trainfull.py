@@ -1,13 +1,15 @@
 import datetime
-import torch
-import numpy as np
-import os
 import logging
-from utils.loggingutils import init_universal_logging
-from models import fetentvecutils
-from modelexp import fetelexp, exputils
-from el import simpleel
+import os
+
+import numpy as np
+import torch
+
 import config
+from el import simpleel
+from modelexp import fetelexp, exputils
+from models import fetentvecutils
+from utils.loggingutils import init_universal_logging
 
 
 def train_model(args):
@@ -19,7 +21,7 @@ def train_model(args):
     type_embed_dim = 32
     pred_mlp_hdim = 500
     n_iter = 15
-    lr = 0.001
+    lr = 0.01
     nil_rate = 0.5
     use_mlp = True
     rand_per = True

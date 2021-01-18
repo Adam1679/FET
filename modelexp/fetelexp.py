@@ -99,6 +99,7 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
 
     test_true_labels_dict = {m['mention_id'] : m['labels'] for m in test_mentions} if (
             'labels' in next (iter (test_mentions))) else None
+
     print ("freq in test")
     __print_type_freq (test_true_labels_dict)
     print ("freq in dev")
@@ -116,12 +117,53 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
     # print("min # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.min(), dev_c.min(), test_c.min()))
     # print("max # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.max(), dev_c.max(), test_c.max()))
     #
-    te_entity_vecs, _, _ = __get_entity_vecs_for_samples (el_entityvec, test_samples, None, True)
+    te_entity_vecs, _, te_el_probs = __get_entity_vecs_for_samples (el_entityvec, test_samples, None, True)
+    te_el_probs_dict = {test_samples[i].mention_id : te_el_probs[i] for i in range (len (test_samples))}
     dv_entity_vecs, _, _ = __get_entity_vecs_for_samples (el_entityvec, dev_samples, None, True)
-    (_, _, _, _, te_y_true) = exputils.get_mstr_cxt_label_batch_input (torch.device ('cpu'), gres.n_types,
-                                                                       te_entity_vecs)
-    (_, _, _, _, dv_y_true) = exputils.get_mstr_cxt_label_batch_input (torch.device ('cpu'), gres.n_types,
-                                                                       te_entity_vecs)
+    pred_labels_dict_dv = {}
+    pred_labels_dict_te = {}
+    cnt = 0
+    for j, sample in enumerate (test_samples) :
+        type_ids_pred = te_entity_vecs[j].nonzero ()[0]
+        labels = utils.get_full_types ([gres.type_vocab[tid] for tid in type_ids_pred])
+        if len (labels) == 0 :
+            cnt += 1
+            labels = ['NAN']
+        pred_labels_dict_te[sample.mention_id] = labels
+    print ("dev missing labels # = ", cnt)
+    cnt = 0
+    for j, sample in enumerate (dev_samples) :
+        type_ids_pred = dv_entity_vecs[j].nonzero ()[0]
+        labels = utils.get_full_types ([gres.type_vocab[tid] for tid in type_ids_pred])
+        if len (labels) == 0 :
+            cnt += 1
+            labels = ['NAN']
+        pred_labels_dict_dv[sample.mention_id] = labels
+    print ("dev missing labels # = ", cnt)
+
+    def _eval(true_labels_dict, pred_labels_dict) :
+        strict_acc = utils.strict_acc (true_labels_dict, pred_labels_dict)
+        partial_acc = utils.partial_acc (true_labels_dict, pred_labels_dict)
+        maf1 = utils.macrof1 (true_labels_dict, pred_labels_dict)
+        mif1 = utils.microf1 (true_labels_dict, pred_labels_dict)
+        return strict_acc, partial_acc, maf1, mif1
+
+    for k, v in pred_labels_dict_te.items () :
+        pred = pred_labels_dict_te[k]
+        tot = len (v)
+        cnt = 0
+        for p in pred :
+            if p in test_true_labels_dict[k] :
+                cnt += 1
+        print ("{}: {}/{} {}".format (k, cnt, tot, te_el_probs_dict[k]))
+
+    strict_acct, partial_acct, maf1t, mif1t = _eval (test_true_labels_dict, pred_labels_dict_te)
+    strict_accv, partial_accv, maf1v, mif1v = _eval (dev_true_labels_dict, pred_labels_dict_dv)
+    print ("strict_accv, partial_accv, maf1v, mif1v")
+    print ("test:", end='')
+    print (strict_acct, partial_acct, maf1t, mif1t)
+    print ("dev:", end='')
+    print (strict_accv, partial_accv, maf1v, mif1v)
 
 def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
@@ -152,7 +194,7 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
     dev_samples = anchor_samples_to_model_samples(dev_samples, gres.mention_token_id, gres.parent_type_ids_dict)  # type: List[LabeledModelSample]
     start = time.time()
     print ("train_samples_with_label takes {}s".format ((time.time () - start) / 1000))
-    lr_gamma = 0.8
+    lr_gamma = 0.7
     eval_batch_size = 32
     logging.info('{}'.format(model.__class__.__name__))
     dev_true_labels_dict = {s.mention_id: [gres.type_vocab[l] for l in s.labels] for s in dev_samples}
@@ -185,8 +227,8 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
 
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.SGD (model.parameters (), lr=learning_rate, momentum=0.9)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=n_batches, gamma=lr_gamma)
     losses = list()
     best_dev_acc = -1
@@ -232,13 +274,6 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
         step += 1
         if step % 1000 == 0:
             acc_tr, pacc_tr = -1, -1
-            # logging.info('i={} l={:.4f}'.format(step + 1, sum(losses)))
-            # start = time.time()
-            # acc_tr, pacc_tr, _, _, dev_results = eval_fetel (
-            #     gres, model, train_samples_with_label, entity_vecs, el_probs, eval_batch_size,
-            #     use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
-            #     true_labels_dict=tr_true_labels_dict)
-            # print("train eval takes {}s".format((time.time() - start) / 1000))
             acc_v, pacc_v, _, _, dev_results = eval_fetel(
                 gres, model, dev_samples, dev_entity_vecs, dev_el_probs, eval_batch_size,
                 use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
