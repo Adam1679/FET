@@ -188,7 +188,7 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
     else:
         model = None
     if device.type == 'cuda':
-        model = model.cuda(device.index)
+        model = model.cuda ()
     # 每个sample都是一个长度为7的tuple：
     train_samples = datautils.load_pickle_data(train_samples_pkl)
     train_size = len(train_samples)

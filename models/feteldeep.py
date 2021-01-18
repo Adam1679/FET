@@ -201,26 +201,26 @@ class CopyMode(nn.Module):
 
         self.fc = nn.Sequential (*layers)
 
-    # def forward(self, x, entity_vecs, type_emb):
-    #     """x: (256, 800)
-    #        entity_vecs: (B, n_type)
-    #        type_emb: (emb_size, n_type)
-    #     """
-    #     x = self.fc(x)
-    #     type_embed_dim, n_types = type_emb.size()
-    #     logits = torch.matmul (x.view (-1, 1, type_embed_dim),
-    #                            type_emb.view (-1, type_embed_dim, n_types))
-    #     logits = logits.view (-1, n_types)
-    #     return logits * entity_vecs
-
     def forward(self, x, entity_vecs, type_emb) :
+        """x: (256, 800)
+           entity_vecs: (B, n_type)
+           type_emb: (emb_size, n_type)
+        """
+        x = self.fc (x)
         type_embed_dim, n_types = type_emb.size ()
-        entity_vecs = entity_vecs.unsqueeze (dim=1)  # (B, 1, n_type) * (emb_size, n_type) -> (B, emb_size, n_type)
-        x = (entity_vecs * type_emb).mean (dim=2)
         logits = torch.matmul (x.view (-1, 1, type_embed_dim),
                                type_emb.view (-1, type_embed_dim, n_types))
         logits = logits.view (-1, n_types)
-        return logits
+        return logits * entity_vecs
+
+    # def forward(self, x, entity_vecs, type_emb) :
+    #     type_embed_dim, n_types = type_emb.size ()
+    #     entity_vecs = entity_vecs.unsqueeze (dim=1)  # (B, 1, n_type) * (emb_size, n_type) -> (B, emb_size, n_type)
+    #     x = (entity_vecs * type_emb).mean (dim=2)
+    #     logits = torch.matmul (x.view (-1, 1, type_embed_dim),
+    #                            type_emb.view (-1, type_embed_dim, n_types))
+    #     logits = logits.view (-1, n_types)
+    #     return logits
 
 
 class GenerationMode(nn.Module):
