@@ -119,7 +119,8 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
     #
     te_entity_vecs, _, te_el_probs = __get_entity_vecs_for_samples (el_entityvec, test_samples, None, True)
     te_el_probs_dict = {test_samples[i].mention_id : te_el_probs[i] for i in range (len (test_samples))}
-    dv_entity_vecs, _, _ = __get_entity_vecs_for_samples (el_entityvec, dev_samples, None, True)
+    dv_entity_vecs, _, dv_el_probs = __get_entity_vecs_for_samples (el_entityvec, dev_samples, None, True)
+    dv_el_probs_dict = {dev_samples[i].mention_id : dv_el_probs[i] for i in range (len (dev_samples))}
     pred_labels_dict_dv = {}
     pred_labels_dict_te = {}
     cnt = 0
@@ -130,6 +131,7 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
             cnt += 1
             labels = ['NAN']
         pred_labels_dict_te[sample.mention_id] = labels
+
     print ("dev missing labels # = ", cnt)
     cnt = 0
     for j, sample in enumerate (dev_samples) :
@@ -148,6 +150,7 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         mif1 = utils.microf1 (true_labels_dict, pred_labels_dict)
         return strict_acc, partial_acc, maf1, mif1
 
+    print ("Test")
     for k, v in pred_labels_dict_te.items () :
         pred = pred_labels_dict_te[k]
         tot = len (v)
@@ -156,6 +159,15 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
             if p in test_true_labels_dict[k] :
                 cnt += 1
         print ("{}: {}/{} {}".format (k, cnt, tot, te_el_probs_dict[k]))
+    print ("Dev")
+    for k, v in pred_labels_dict_dv.items () :
+        pred = pred_labels_dict_dv[k]
+        tot = len (v)
+        cnt = 0
+        for p in pred :
+            if p in dev_true_labels_dict[k] :
+                cnt += 1
+        print ("{}: {}/{} {}".format (k, cnt, tot, dv_el_probs_dict[k]))
 
     strict_acct, partial_acct, maf1t, mif1t = _eval (test_true_labels_dict, pred_labels_dict_te)
     strict_accv, partial_accv, maf1v, mif1v = _eval (dev_true_labels_dict, pred_labels_dict_dv)
