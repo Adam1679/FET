@@ -48,8 +48,16 @@ class ELDirectEntityVec:
             if True and (
                     self.rand_assign_rate >= 1.0 or np.random.uniform() < self.rand_assign_rate):
                 for _ in range(3):
-                    rand_person_type_id = person_l2_type_ids[random.randint(0, len(person_l2_type_ids) - 1)]
-                    if all_entity_vecs[i][rand_person_type_id] < 1.0:
-                        all_entity_vecs[i][rand_person_type_id] = 1.0
-                        break
+                    if person_type_id is not None and person_type_id in types :
+                        rand_person_type_id = person_l2_type_ids[random.randint (0, len (person_l2_type_ids) - 1)]
+                        if all_entity_vecs[i][rand_person_type_id] < 1.0 :
+                            all_entity_vecs[i][rand_person_type_id] = 1.0
+                            break
+                    else :
+                        nonzeros = all_entity_vecs[i].nonzero ()
+                        rand_person_type_id = int (np.random.uniform (0, len (nonzeros)))
+                        if all_entity_vecs[i][rand_person_type_id] > 0 :
+                            all_entity_vecs[i][rand_person_type_id] = 1.0
+                            break
+
         return all_entity_vecs, el_sgns, probs
