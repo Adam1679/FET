@@ -1,6 +1,8 @@
-import numpy as np
-import random
 import logging
+import random
+
+import numpy as np
+
 from utils import datautils
 
 
@@ -13,7 +15,7 @@ class ELDirectEntityVec:
     def __init__(self, n_types, type_to_id_dict, el_system, wid_types_file):
         self.n_types = n_types
         self.el_system = el_system
-        self.rand_assign_rate = 1.1
+        self.rand_assign_rate = 0.8
         print('loading {} ...'.format(wid_types_file))
         logging.info('rand_assign_rate={}'.format(self.rand_assign_rate))
         self.wid_types_dict = datautils.load_wid_types_file(wid_types_file, type_to_id_dict) #TODO：知识图谱里面的type? 还是说是已经map好了的type?
@@ -42,7 +44,8 @@ class ELDirectEntityVec:
             for type_id in types:
                 all_entity_vecs[i][type_id] = 1
 
-            if person_type_id is not None and person_type_id in types and (
+            # if person_type_id is not None and person_type_id in types and (
+            if True and (
                     self.rand_assign_rate >= 1.0 or np.random.uniform() < self.rand_assign_rate):
                 for _ in range(3):
                     rand_person_type_id = person_l2_type_ids[random.randint(0, len(person_l2_type_ids) - 1)]

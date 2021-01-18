@@ -1,12 +1,14 @@
-import torch
-import numpy as np
+import logging
 import time
 from typing import List
-from models.feteldeep import NoName
-from models.fetentvecutils import ELDirectEntityVec
+
+import numpy as np
+import torch
+
 from modelexp import exputils
 from modelexp.exputils import ModelSample, anchor_samples_to_model_samples, model_samples_from_json
-import logging
+from models.feteldeep import NoName
+from models.fetentvecutils import ELDirectEntityVec
 from utils import datautils, utils
 
 
@@ -50,6 +52,15 @@ def __get_entity_vecs_for_mentions(el_entityvec: ELDirectEntityVec, mentions, no
             all_probs[idx] = prob_vec
     return all_entity_type_vecs, all_el_sgns, all_probs
 
+
+def __print_type_freq(labels) :
+    import pandas as pd
+    pd.set_option ('display.max_rows', 500)
+    lis = []
+    for v in labels.values () :
+        lis.extend (v)
+    print (pd.Series (lis).value_counts (normalize=True))
+
 def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
@@ -57,10 +68,7 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
                 single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None) :
 
     # 每个sample都是一个长度为7的tuple：
-    train_samples = datautils.load_pickle_data (train_samples_pkl)
-    train_samples_with_label = anchor_samples_to_model_samples (train_samples, gres.mention_token_id,
-                                                                gres.parent_type_ids_dict)  # type: List[LabeledModelSample]
-    del train_samples
+
     dev_samples = datautils.load_pickle_data (dev_samples_pkl)
     # batch_samples：针对每一个mention，context的token sequence id，包括parent的full types
     dev_samples = anchor_samples_to_model_samples (dev_samples, gres.mention_token_id,
@@ -91,49 +99,35 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
 
     test_true_labels_dict = {m['mention_id'] : m['labels'] for m in test_mentions} if (
             'labels' in next (iter (test_mentions))) else None
-    tr_c = np.array([len (s.labels) for s in train_samples_with_label])
-
+    print ("freq in test")
+    __print_type_freq (test_true_labels_dict)
+    print ("freq in dev")
+    __print_type_freq (dev_true_labels_dict)
+    # train_samples = datautils.load_pickle_data (train_samples_pkl)
+    # train_samples_with_label = anchor_samples_to_model_samples (train_samples, gres.mention_token_id,
+    #                                                             gres.parent_type_ids_dict)  # type: List[LabeledModelSample]
+    #
+    # del train_samples
+    # tr_c = np.array([len (s.labels) for s in train_samples_with_label])
     dev_c = np.array([len(s.labels) for s in dev_samples])
 
     test_c = np.array ([len (m['labels']) for m in test_mentions])
-    print("avg # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.mean(), dev_c.mean(), test_c.mean()))
-    print("min # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.min(), dev_c.min(), test_c.min()))
-    print("max # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.max(), dev_c.max(), test_c.max()))
-
+    # print("avg # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.mean(), dev_c.mean(), test_c.mean()))
+    # print("min # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.min(), dev_c.min(), test_c.min()))
+    # print("max # in tr/dev/te: {:.4f}/{:.4f}/{:.4f}".format (tr_c.max(), dev_c.max(), test_c.max()))
+    #
+    te_entity_vecs, _, _ = __get_entity_vecs_for_samples (el_entityvec, test_samples, None, True)
+    dv_entity_vecs, _, _ = __get_entity_vecs_for_samples (el_entityvec, dev_samples, None, True)
+    (_, _, _, _, te_y_true) = exputils.get_mstr_cxt_label_batch_input (torch.device ('cpu'), gres.n_types,
+                                                                       te_entity_vecs)
+    (_, _, _, _, dv_y_true) = exputils.get_mstr_cxt_label_batch_input (torch.device ('cpu'), gres.n_types,
+                                                                       te_entity_vecs)
 
 def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
                 use_mlp=False, pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
                 single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None):
-    """
-
-    :param device:
-    :param gres: # 存储了所有的token的embedding， type的名字，id， 还有一些parent type的名字，id
-    :param el_entityvec: # 存储了token对应的types的id，以及entity linking的对象
-    :param train_samples_pkl:
-    :param dev_samples_pkl:
-    :param test_mentions_file:
-    :param test_sents_file:
-    :param test_noel_preds_file:
-    :param type_embed_dim:
-    :param context_lstm_hidden_dim:
-    :param learning_rate:
-    :param batch_size:
-    :param n_iter:
-    :param dropout:
-    :param rand_per:
-    :param per_penalty:
-    :param use_mlp:
-    :param pred_mlp_hdim:
-    :param save_model_file:
-    :param nil_rate:
-    :param single_type_path:
-    :param stack_lstm:
-    :param concat_lstm:
-    :param results_file:
-    :return:
-    """
     logging.info('result_file={}'.format(results_file))
     logging.info(
         'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={}'.format(
