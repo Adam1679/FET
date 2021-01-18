@@ -5,6 +5,7 @@ __pycache__/
 *$py.class
 Wiki/*
 BBN/*
+result
 res/*
 # C extensions
 *.so

@@ -40,11 +40,12 @@ def train_model(args):
     data_prefix = datafiles['anchor-train-data-prefix']
     dev_data_pkl = data_prefix + '-dev.pkl'
     train_data_pkl = data_prefix + '-train.pkl'
-
-    save_model_file = None
-    results_file = None
-    # results_file = os.path.join(config.DATA_DIR, 'result/{}-{}.txt'.format(
-    #     os.path.splitext(os.path.basename(test_mentions_file))[0], dataset))
+    # save_model_file = None
+    # results_file = None
+    save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.txt'.format (
+        os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
+    results_file = os.path.join (config.DATA_DIR, 'result/metric-{}-{}.txt'.format (
+        os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
     noel_preds_file = datafiles['noel-typing-results']
 
     el_candidates_file = config.EL_CANDIDATES_DATA_FILE
@@ -59,12 +60,13 @@ def train_model(args):
 
     logging.info('dataset={} {}'.format(dataset, data_prefix))
     logging.info ('comment={}'.format (args.comment))
-    fetelexp.train_fetel(writer, device, gres, el_entityvec, train_data_pkl, dev_data_pkl, test_mentions_file, datafiles['fetel-test-sents'],
-        test_noel_preds_file=noel_preds_file, type_embed_dim=type_embed_dim,
-        context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
-        dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
-        save_model_file=save_model_file, nil_rate=nil_rate, single_type_path=single_type_path,
-        stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file)
+    fetelexp.train_fetel (args, writer, device, gres, el_entityvec, train_data_pkl, dev_data_pkl, test_mentions_file,
+                          datafiles['fetel-test-sents'],
+                          test_noel_preds_file=noel_preds_file, type_embed_dim=type_embed_dim,
+                          context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
+                          dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
+                          save_model_file=save_model_file, nil_rate=nil_rate, single_type_path=single_type_path,
+                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file)
 
 
 if __name__ == '__main__':
@@ -73,6 +75,9 @@ if __name__ == '__main__':
     from torch.utils.tensorboard import SummaryWriter
     parser = argparse.ArgumentParser()
     parser.add_argument('--comment', '-m', required=True, type=str)
+    parser.add_argument ('--resume', '-r', type=str, default="")
+    parser.add_argument ('--copy', '-c', action="store_false")
+
     args = parser.parse_args()
     torch.random.manual_seed(config.RANDOM_SEED)
     np.random.seed(config.NP_RANDOM_SEED)

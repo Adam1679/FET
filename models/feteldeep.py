@@ -256,12 +256,12 @@ class GenerationMode(nn.Module):
 
 class NoName(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
-                 type_embed_dim, dropout=0.5, use_mlp=False, mlp_hidden_dim=None, concat_lstm=False, alpha=0.5):
+                 type_embed_dim, dropout=0.5, use_mlp=False, mlp_hidden_dim=None, concat_lstm=False, copy=True) :
         super(NoName, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
+        self.copy = copy
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
-        self.alpha = alpha
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         self.copy_mode = CopyMode(linear_map_input_dim, type_embed_dim, dp=dropout)
@@ -297,11 +297,13 @@ class NoName(BaseResModel):
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output), dim=1))
-        a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
-        b = self.generate_mode(cat_output, self.type_embeddings)
-        score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
-        # score = cat_output
-        r = self.alpha (score)
-        logits = r * a + (1-r) * b
+        b = self.generate_mode (cat_output, self.type_embeddings)
+        if self.copy :
+            a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
+            score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
+            r = self.alpha (score)
+            logits = r * a + (1 - r) * b
+        else :
+            logits = b
         logits = logits.view(-1, self.n_types)
         return logits

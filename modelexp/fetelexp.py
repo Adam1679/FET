@@ -180,7 +180,8 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
     print ("dev:", end='')
     print (strict_accv, partial_accv, maf1v, mif1v)
 
-def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
+
+def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
                 use_mlp=False, pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
@@ -197,13 +198,17 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
         model = NoName(
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-            concat_lstm=concat_lstm)
+            concat_lstm=concat_lstm, copy=args.copy)
         if torch.cuda.device_count() > 1:
             model = torch.nn.DataParallel(model)
     else:
         model = None
     if device.type == 'cuda':
         model = model.cuda ()
+    if args.resume != "" :
+        logging.info ("resume from {}".format (args.resume))
+        model.load_state_dict (torch.load (args.resume))
+
     # 每个sample都是一个长度为7的tuple：
     train_samples = datautils.load_pickle_data(train_samples_pkl)
     train_size = len(train_samples)
@@ -292,15 +297,15 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
         step += 1
         if step % 1000 == 0:
             acc_tr, pacc_tr = -1, -1
-            acc_v, pacc_v, _, _, dev_results = eval_fetel(
-                device, gres, model, dev_samples, dev_entity_vecs, dev_el_probs, eval_batch_size,
-                use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
-                true_labels_dict=dev_true_labels_dict)
+            acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
+                                                           device, gres, model, dev_samples, dev_entity_vecs, dev_el_probs, eval_batch_size,
+                                                           use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
+                                                           true_labels_dict=dev_true_labels_dict)
 
-            acc_t, _, maf1, mif1, test_results = eval_fetel(
-                device, gres, model, test_samples, test_entity_vecs, test_el_probs, eval_batch_size,
-                use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
-                true_labels_dict=test_true_labels_dict)
+            acc_t, _, maf1, mif1, test_results = eval_fetel (args,
+                                                             device, gres, model, test_samples, test_entity_vecs, test_el_probs, eval_batch_size,
+                                                             use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
+                                                             true_labels_dict=test_true_labels_dict)
 
             best_tag = '*' if acc_v > best_dev_acc else ''
             logging.info(
@@ -330,7 +335,7 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
             losses = list()
 
 
-def eval_fetel(device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
+def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
                batch_size=32,
                use_entity_vecs=True, single_type_path=False, true_labels_dict=None):
     model.eval()
