@@ -158,7 +158,9 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         for p in pred :
             if p in test_true_labels_dict[k] :
                 cnt += 1
-        print ("{}: {}/{} {}".format (k, cnt, tot, te_el_probs_dict[k]))
+        one_type = list (test_true_labels_dict[k].values ())[0]
+        print ("{}:{} {}/{} {}".format (k, one_type, cnt, tot, te_el_probs_dict[k]))
+
     print ("Dev")
     for k, v in pred_labels_dict_dv.items () :
         pred = pred_labels_dict_dv[k]
@@ -167,7 +169,8 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         for p in pred :
             if p in dev_true_labels_dict[k] :
                 cnt += 1
-        print ("{}: {}/{} {}".format (k, cnt, tot, dv_el_probs_dict[k]))
+        one_type = list (dev_true_labels_dict[k].values ())[0]
+        print ("{}: {} {}/{} {}".format (k, one_type, cnt, tot, dv_el_probs_dict[k]))
 
     strict_acct, partial_acct, maf1t, mif1t = _eval (test_true_labels_dict, pred_labels_dict_te)
     strict_accv, partial_accv, maf1v, mif1v = _eval (dev_true_labels_dict, pred_labels_dict_dv)
@@ -242,8 +245,8 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
 
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    optimizer = torch.optim.SGD (model.parameters (), lr=learning_rate, momentum=0.9)
+    optimizer = torch.optim.Adam (model.parameters (), lr=learning_rate)
+    # optimizer = torch.optim.SGD (model.parameters (), lr=learning_rate, momentum=0.9)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=n_batches, gamma=lr_gamma)
     losses = list()
     best_dev_acc = -1

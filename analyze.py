@@ -1,13 +1,15 @@
 import datetime
-import torch
-import numpy as np
-import os
 import logging
-from utils.loggingutils import init_universal_logging
-from models import fetentvecutils
-from modelexp import fetelexp, exputils
-from el import simpleel
+import os
+
+import numpy as np
+import torch
+
 import config
+from el import simpleel
+from modelexp import fetelexp, exputils
+from models import fetentvecutils
+from utils.loggingutils import init_universal_logging
 
 
 def train_model():
@@ -39,8 +41,6 @@ def train_model():
 
     save_model_file = None
     results_file = None
-    # results_file = os.path.join(config.DATA_DIR, 'result/{}-{}.txt'.format(
-    #     os.path.splitext(os.path.basename(test_mentions_file))[0], dataset))
     noel_preds_file = datafiles['noel-typing-results']
 
     el_candidates_file = config.EL_CANDIDATES_DATA_FILE
@@ -64,7 +64,7 @@ def train_model():
 
 if __name__ == '__main__':
     import random
-    import argparse
+
     torch.random.manual_seed(config.RANDOM_SEED)
     np.random.seed(config.NP_RANDOM_SEED)
     random.seed(config.PY_RANDOM_SEED)

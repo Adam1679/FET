@@ -21,7 +21,7 @@ def train_model(args):
     type_embed_dim = 32
     pred_mlp_hdim = 500
     n_iter = 15
-    lr = 0.01
+    lr = 0.001
     nil_rate = 0.5
     use_mlp = True
     rand_per = True
