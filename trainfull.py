@@ -58,6 +58,7 @@ def train_model(args):
     el_entityvec = fetentvecutils.ELDirectEntityVec(gres.n_types, gres.type_id_dict, el_system, datafiles['wid-type-file'])
 
     logging.info('dataset={} {}'.format(dataset, data_prefix))
+    logging.info ('comment={}'.format (args.comment))
     fetelexp.train_fetel(writer, device, gres, el_entityvec, train_data_pkl, dev_data_pkl, test_mentions_file, datafiles['fetel-test-sents'],
         test_noel_preds_file=noel_preds_file, type_embed_dim=type_embed_dim,
         context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
