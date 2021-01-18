@@ -300,7 +300,7 @@ class NoName(BaseResModel):
         a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
         b = self.generate_mode(cat_output, self.type_embeddings)
         # score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
-        score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
+        score = cat_output
         r = self.alpha (score)
         logits = r * a + (1-r) * b
         logits = logits.view(-1, self.n_types)
