@@ -178,10 +178,13 @@ def train_fetel(writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirect
     logging.info('stack_lstm={} cat_lstm={}'.format(stack_lstm, concat_lstm))
 
     if stack_lstm:
+        print ("Use [{}] GPUs".format (torch.cuda.device_count ()))
         model = NoName(
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
             concat_lstm=concat_lstm)
+        if torch.cuda.device_count() > 1:
+            model = torch.nn.DataParallel(model)
     else:
         model = None
     if device.type == 'cuda':
