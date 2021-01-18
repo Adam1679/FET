@@ -266,7 +266,7 @@ class NoName(BaseResModel):
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         self.copy_mode = CopyMode(linear_map_input_dim, type_embed_dim, dp=dropout)
         self.generate_mode = GenerationMode(linear_map_input_dim, type_embed_dim, dp=dropout)
-        self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim, 256),
+        self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1, 256),
                                     nn.Tanh(),
                                     nn.Linear(256, 1),
                                     nn.Sigmoid())
@@ -299,8 +299,8 @@ class NoName(BaseResModel):
         cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output), dim=1))
         a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
         b = self.generate_mode(cat_output, self.type_embeddings)
-        # score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
-        score = cat_output
+        score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
+        # score = cat_output
         r = self.alpha (score)
         logits = r * a + (1-r) * b
         logits = logits.view(-1, self.n_types)
