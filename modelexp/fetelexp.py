@@ -1,8 +1,8 @@
 import logging
+import time
 from typing import List
 
 import numpy as np
-import time
 import torch
 
 from modelexp import exputils
@@ -151,17 +151,27 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         return strict_acc, partial_acc, maf1, mif1
 
     print ("Test")
+    hit = {}
+    miss = {}
     for k, v in pred_labels_dict_te.items () :
         pred = pred_labels_dict_te[k]
         tot = len (v)
         cnt = 0
+        one_type = test_true_labels_dict[k][0]
         for p in pred :
             if p in test_true_labels_dict[k] :
                 cnt += 1
-        one_type = list (test_true_labels_dict[k].values ())[0]
-        print ("{}:{} {}/{} {}".format (k, one_type, cnt, tot, te_el_probs_dict[k]))
+                hit[one_type] = hit.get (one_type, 0) + 1
+            else :
+                miss[one_type] = miss.get (one_type, 0) + 1
+
+        # print ("{}:{} {}/{} {}".format (k, one_type, cnt, tot, te_el_probs_dict[k]))
+    for k, v in hit.items () :
+        print ("{}: {}/{}".format (k, v, v + miss.get (k, 0)))
 
     print ("Dev")
+    hit = {}
+    miss = {}
     for k, v in pred_labels_dict_dv.items () :
         pred = pred_labels_dict_dv[k]
         tot = len (v)
@@ -169,9 +179,13 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         for p in pred :
             if p in dev_true_labels_dict[k] :
                 cnt += 1
-        one_type = list (dev_true_labels_dict[k].values ())[0]
-        print ("{}: {} {}/{} {}".format (k, one_type, cnt, tot, dv_el_probs_dict[k]))
-
+                hit[one_type] = hit.get (one_type, 0) + 1
+            else :
+                miss[one_type] = miss.get (one_type, 0) + 1
+        one_type = dev_true_labels_dict[k][0]
+        # print ("{}: {} {}/{} {}".format (k, one_type, cnt, tot, dv_el_probs_dict[k]))
+    for k, v in hit.items () :
+        print ("{}: {}/{}".format (k, v, v + miss.get (k, 0)))
     strict_acct, partial_acct, maf1t, mif1t = _eval (test_true_labels_dict, pred_labels_dict_te)
     strict_accv, partial_accv, maf1v, mif1v = _eval (dev_true_labels_dict, pred_labels_dict_dv)
     print ("strict_accv, partial_accv, maf1v, mif1v")
