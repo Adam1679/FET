@@ -334,7 +334,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 acc_tr, pacc_tr = -1, -1
                 acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
                                                                device, gres, model, dev_samples, dev_entity_vecs,
-                                                               dev_el_probs, eval_batch_size,
+                                                               dev_el_probs, batch_size=eval_batch_size,
                                                                use_entity_vecs=use_entity_vecs,
                                                                single_type_path=single_type_path,
                                                                true_labels_dict=dev_true_labels_dict, test=False,
@@ -342,7 +342,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
                 acc_t, _, maf1, mif1, test_results = eval_fetel (args,
                                                                  device, gres, model, test_samples, test_entity_vecs,
-                                                                 test_el_probs, eval_batch_size,
+                                                                 test_el_probs, batch_size=eval_batch_size,
                                                                  use_entity_vecs=use_entity_vecs,
                                                                  single_type_path=single_type_path,
                                                                  true_labels_dict=test_true_labels_dict, test=True,
@@ -378,18 +378,20 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         acc_tr, pacc_tr = -1, -1
         use_entity_vecs = True
         acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
-                                                       device, gres, model, dev_samples, dev_entity_vecs, dev_el_probs,
-                                                       eval_batch_size,
+                                                       device, gres, model, dev_samples, dev_entity_vecs,
+                                                       dev_el_probs, batch_size=eval_batch_size,
                                                        use_entity_vecs=use_entity_vecs,
                                                        single_type_path=single_type_path,
-                                                       true_labels_dict=dev_true_labels_dict, test=False)
+                                                       true_labels_dict=dev_true_labels_dict, test=False,
+                                                       feats=dev_feats)
 
         acc_t, _, maf1, mif1, test_results = eval_fetel (args,
                                                          device, gres, model, test_samples, test_entity_vecs,
-                                                         test_el_probs, eval_batch_size,
+                                                         test_el_probs, batch_size=eval_batch_size,
                                                          use_entity_vecs=use_entity_vecs,
                                                          single_type_path=single_type_path,
-                                                         true_labels_dict=test_true_labels_dict, test=True)
+                                                         true_labels_dict=test_true_labels_dict, test=True,
+                                                         feats=te_feats)
 
         best_tag = '*' if acc_v > best_dev_acc else ''
         logging.info (
