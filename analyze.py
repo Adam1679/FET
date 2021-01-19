@@ -64,7 +64,6 @@ def train_model():
 
 if __name__ == '__main__':
     import random
-
     torch.random.manual_seed(config.RANDOM_SEED)
     np.random.seed(config.NP_RANDOM_SEED)
     random.seed(config.PY_RANDOM_SEED)

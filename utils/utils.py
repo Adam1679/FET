@@ -113,12 +113,13 @@ def strict_acc(true_labels_dict, pred_labels_dict, test=True) :
     miss_dict = {}
     for wid, labels_true in true_labels_dict.items():
         labels_pred = pred_labels_dict[wid]
-        type_name = labels_true[0]
+        for type_name in labels_true :
+            if type_name in labels_pred :
+                hit_dict[type_name] = hit_dict.get (type_name, 0) + 1
+            else :
+                miss_dict[type_name] = miss_dict.get (type_name, 0) + 1
         if labels_full_match(labels_true, labels_pred):
             hit_cnt += 1
-            hit_dict[type_name] = hit_dict.get (type_name, 0) + 1
-        else :
-            miss_dict[type_name] = miss_dict.get (type_name, 0) + 1
     acc_dict = {}
     for k, v in hit_dict.items () :
         r = v / (v + miss_dict.get (k, 0))
@@ -129,7 +130,7 @@ def strict_acc(true_labels_dict, pred_labels_dict, test=True) :
         for k, v in sorted_acc_dict :
             hit = hit_dict.get (k, 0)
             miss = miss_dict.get (k, 0)
-            f.write ("{}: {} {}/{}".format (k, v, hit, miss))
+            f.write ("{}: {} {}/{}\n".format (k, v, hit, miss))
 
     return hit_cnt / len(true_labels_dict)
 

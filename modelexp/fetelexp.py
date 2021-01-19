@@ -319,14 +319,14 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                                                                dev_el_probs, eval_batch_size,
                                                                use_entity_vecs=use_entity_vecs,
                                                                single_type_path=single_type_path,
-                                                               true_labels_dict=dev_true_labels_dict)
+                                                               true_labels_dict=dev_true_labels_dict, test=False)
 
                 acc_t, _, maf1, mif1, test_results = eval_fetel (args,
                                                                  device, gres, model, test_samples, test_entity_vecs,
                                                                  test_el_probs, eval_batch_size,
                                                                  use_entity_vecs=use_entity_vecs,
                                                                  single_type_path=single_type_path,
-                                                                 true_labels_dict=test_true_labels_dict)
+                                                                 true_labels_dict=test_true_labels_dict, test=True)
 
                 best_tag = '*' if acc_v > best_dev_acc else ''
                 logging.info (
@@ -379,7 +379,10 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
 def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
                batch_size=32,
-               use_entity_vecs=True, single_type_path=False, true_labels_dict=None):
+               use_entity_vecs=True,
+               single_type_path=False,
+               true_labels_dict=None,
+               test=True) :
     model.eval()
     n_batches = (len(samples) + batch_size - 1) // batch_size
     pred_labels_dict = dict()
@@ -413,7 +416,7 @@ def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[Mode
 
     strict_acc, partial_acc, maf1, mif1 = 0, 0, 0, 0
     if true_labels_dict is not None:
-        strict_acc = utils.strict_acc(true_labels_dict, pred_labels_dict)
+        strict_acc = utils.strict_acc (true_labels_dict, pred_labels_dict, test)
         partial_acc = utils.partial_acc(true_labels_dict, pred_labels_dict)
         maf1 = utils.macrof1(true_labels_dict, pred_labels_dict)
         mif1 = utils.microf1(true_labels_dict, pred_labels_dict)
