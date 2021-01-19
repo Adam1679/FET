@@ -15,7 +15,7 @@ class ELDirectEntityVec:
     def __init__(self, n_types, type_to_id_dict, el_system, wid_types_file):
         self.n_types = n_types
         self.el_system = el_system
-        self.rand_assign_rate = 0.8
+        self.rand_assign_rate = 1.1
         print('loading {} ...'.format(wid_types_file))
         logging.info('rand_assign_rate={}'.format(self.rand_assign_rate))
         self.wid_types_dict = datautils.load_wid_types_file(wid_types_file, type_to_id_dict) #TODO：知识图谱里面的type? 还是说是已经map好了的type?
