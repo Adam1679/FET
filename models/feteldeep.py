@@ -98,7 +98,7 @@ class BaseResModel(nn.Module):
     #     loss = torch.mean(torch.add(tmp1, tmp2))
     #     return loss
 
-    def get_loss(self, true_type_vecs, scores) :
+    def get_loss(self, true_type_vecs, scores, margin=1.0, person_loss_vec=None) :
         return F.binary_cross_entropy (scores, true_type_vecs)
 
     def inference(self, scores, is_torch_tensor=True):
