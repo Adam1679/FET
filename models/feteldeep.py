@@ -99,6 +99,8 @@ class BaseResModel(nn.Module):
     #     return loss
 
     def get_loss(self, true_type_vecs, scores, margin=1.0, person_loss_vec=None) :
+        import pdb;
+        pdb.set_trace ()
         return F.binary_cross_entropy (scores, true_type_vecs)
 
     def inference(self, scores, is_torch_tensor=True):
