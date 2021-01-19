@@ -267,7 +267,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     if person_type_id is not None:
         l2_person_type_ids = __get_l2_person_type_ids(gres.type_vocab)
         l2_org_type_ids = __get_l2_org_type_ids (gres.type_vocab)
-        l2_person_type_ids.extend (l2_org_type_ids)
+        # l2_person_type_ids.extend (l2_org_type_ids)
         person_loss_vec = exputils.get_person_type_loss_vec (l2_person_type_ids, gres.n_types, per_penalty, device)
 
     dev_results_file = None
@@ -306,6 +306,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 for i in range (entity_vecs.shape[0]) :
                     if np.random.uniform () < nil_rate :
                         entity_vecs[i] = np.zeros (entity_vecs.shape[1], np.float32)
+                        el_probs[i] = 0.0
                 el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
                 entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
             else :
