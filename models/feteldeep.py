@@ -243,14 +243,27 @@ class GenerationMode(nn.Module):
 
 class NoName(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
-                 type_embed_dim, dropout=0.5, use_mlp=False, mlp_hidden_dim=None, concat_lstm=False, copy=True) :
+                 type_embed_dim, feat_set,
+                 dropout=0.5,
+                 use_mlp=False,
+                 mlp_hidden_dim=None,
+                 concat_lstm=False,
+                 copy=True,
+                 feat_emb_dim=16) :
         super(NoName, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
         self.copy = copy
-        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
+        feat_set = sorted (list (feat_set))
+        self.feat_set = feat_set
+        self.feat_on_idx = {feat : 2 * idx for idx, feat in enumerate (feat_set)}
+        self.feat_off_idx = {feat : 2 * idx + 1 for idx, feat in enumerate (feat_set)}
+        self.feat_embs = nn.Embedding (len (feat_set) * 2, feat_emb_dim)
+        self.feat_emb_dim = feat_emb_dim
+        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + feat_emb_dim * len (feat_set)
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
+
         self.copy_mode = CopyMode(linear_map_input_dim, type_embed_dim, dp=dropout)
         self.generate_mode = GenerationMode(linear_map_input_dim, type_embed_dim, dp=dropout)
         self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1, 256),
@@ -259,7 +272,7 @@ class NoName(BaseResModel):
                                     nn.Sigmoid())
         self.r_max = 0.45
 
-    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs):
+    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
 
         :param context_token_seqs: List[List[Int]], len(List) = batch_size  sent_tokens[:pos_beg] + [mention_token_id] + sent_tokens[pos_end:]
@@ -270,7 +283,14 @@ class NoName(BaseResModel):
         :return:
         """
         batch_size = len(context_token_seqs)
-
+        ids = torch.zeros ((batch_size, len (self.feat_set)), device=entity_vecs.device).long ()
+        for i in range (batch_size) :
+            for idx, feat in enumerate (self.feat_set) :
+                if feat in pos_feats[i] :
+                    ids[i, idx] = self.feat_on_idx[feat]
+                else :
+                    ids[i, idx] = self.feat_off_idx[feat]
+        feat_emb = self.feat_embs (ids).view (batch_size, -1)
         context_token_seqs, seq_lens, mention_token_idxs, back_idxs = modelutils.get_len_sorted_context_seqs_input(
             self.device, context_token_seqs, mention_token_idxs)
 
@@ -284,7 +304,7 @@ class NoName(BaseResModel):
         name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output), dim=1))
+        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output, feat_emb), dim=1))
         b = self.generate_mode (cat_output, self.type_embeddings)
         if self.copy :
             a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)

@@ -21,6 +21,7 @@ def train_model(args):
     # type_embed_dim = 32
     pred_mlp_hdim = 500
     n_iter = 15
+    feat_dim = 16
     lr = 0.001
     nil_rate = 0.5
     use_mlp = True
@@ -70,7 +71,7 @@ def train_model(args):
                           context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
                           dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
                           save_model_file=save_model_file, nil_rate=nil_rate, single_type_path=single_type_path,
-                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file)
+                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file, feat_dim=feat_dim)
 
 
 if __name__ == '__main__':

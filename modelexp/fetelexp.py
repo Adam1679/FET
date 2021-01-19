@@ -8,7 +8,7 @@ import torch
 from modelexp import exputils
 from modelexp.exputils import ModelSample, anchor_samples_to_model_samples, model_samples_from_json
 from models.feteldeep import NoName
-from models.fetentvecutils import ELDirectEntityVec
+from models.fetentvecutils import ELDirectEntityVec, MentionFeat
 from utils import datautils, utils
 
 
@@ -202,11 +202,19 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
     print (strict_accv, partial_accv, maf1v, mif1v)
 
 
+def _get_feature_from_batch_samples(batch_samples) :
+    feats = []
+    feat_set = {}
+    for sample in batch_samples :
+        feat = MentionFeat.features (sample)
+        feats.append (feat)
+    return feats
+
 def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
                 use_mlp=False, pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
-                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None):
+                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None, feat_dim=16) :
     logging.info('result_file={}'.format(results_file))
     logging.info(
         'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={}'.format(
@@ -218,8 +226,9 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         print ("Use [{}] GPUs".format (torch.cuda.device_count ()))
         model = NoName(
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
+            feat_set=MentionFeat.get_feat_set (),
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-            concat_lstm=concat_lstm, copy=args.copy)
+            concat_lstm=concat_lstm, copy=args.copy, feat_emb_dim=feat_dim)
         if torch.cuda.device_count() > 1:
             model = torch.nn.DataParallel(model)
     else:
@@ -236,6 +245,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     dev_samples = datautils.load_pickle_data(dev_samples_pkl)
     # batch_samples：针对每一个mention，context的token sequence id，包括parent的full types
     dev_samples = anchor_samples_to_model_samples(dev_samples, gres.mention_token_id, gres.parent_type_ids_dict)  # type: List[LabeledModelSample]
+    dev_feats = _get_feature_from_batch_samples (dev_samples)
     start = time.time()
     print ("train_samples_with_label takes {}s".format ((time.time () - start) / 1000))
     lr_gamma = 0.7
@@ -250,7 +260,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                                            gres.type_id_dict,
                                            test_mentions_file,
                                            test_sents_file)
-
+    te_feats = _get_feature_from_batch_samples (test_samples)
     test_noel_pred_results = datautils.read_pred_results_file(test_noel_preds_file)
 
     test_mentions = datautils.read_json_objs(test_mentions_file)
@@ -273,7 +283,6 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
     optimizer = torch.optim.Adam (model.parameters (), lr=learning_rate)
-    # optimizer = torch.optim.SGD (model.parameters (), lr=learning_rate, momentum=0.9)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=n_batches, gamma=lr_gamma)
     losses = list()
     best_dev_acc = -1
@@ -288,6 +297,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
             batch_samples = anchor_samples_to_model_samples (
                 train_samples[batch_beg :batch_end], gres.mention_token_id, gres.parent_type_ids_dict)
+            feats = _get_feature_from_batch_samples (batch_samples)
             # entity_vecs should be the linked types
             if rand_per :
                 entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None, True,
@@ -310,7 +320,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
             else :
                 entity_vecs = None
-            logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs)
+            logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, feats)
             loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
             scheduler.step ()
             optimizer.zero_grad ()
@@ -327,14 +337,16 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                                                                dev_el_probs, eval_batch_size,
                                                                use_entity_vecs=use_entity_vecs,
                                                                single_type_path=single_type_path,
-                                                               true_labels_dict=dev_true_labels_dict, test=False)
+                                                               true_labels_dict=dev_true_labels_dict, test=False,
+                                                               feats=dev_feats)
 
                 acc_t, _, maf1, mif1, test_results = eval_fetel (args,
                                                                  device, gres, model, test_samples, test_entity_vecs,
                                                                  test_el_probs, eval_batch_size,
                                                                  use_entity_vecs=use_entity_vecs,
                                                                  single_type_path=single_type_path,
-                                                                 true_labels_dict=test_true_labels_dict, test=True)
+                                                                 true_labels_dict=test_true_labels_dict, test=True,
+                                                                 feats=te_feats)
 
                 best_tag = '*' if acc_v > best_dev_acc else ''
                 logging.info (
@@ -385,12 +397,12 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
 
 
-def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
+def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs, feats,
                batch_size=32,
                use_entity_vecs=True,
                single_type_path=False,
                true_labels_dict=None,
-               test=True) :
+               test=True, ) :
     model.eval()
     n_batches = (len(samples) + batch_size - 1) // batch_size
     pred_labels_dict = dict()
@@ -409,7 +421,7 @@ def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[Mode
             el_probs_batch = torch.tensor (el_probs[batch_beg :batch_end], dtype=torch.float32, device=device)
         with torch.no_grad():
             logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs,
-                           entity_vecs_batch, el_probs_batch)
+                           entity_vecs_batch, el_probs_batch, feats)
 
         if single_type_path:
             preds = model.inference(logits)

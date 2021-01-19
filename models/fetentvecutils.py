@@ -1,5 +1,6 @@
 import logging
 import random
+from collections import defaultdict
 
 import numpy as np
 
@@ -10,6 +11,51 @@ class FETEntityVec:
     def get_entity_vecs(self, *input_args):
         raise NotImplementedError
 
+
+class MentionFeat :
+    @staticmethod
+    def get_feat_set() :
+        return {'all-upper', 'has-upper', 'len-1', 'len-2', 'len-3', 'len>=4'}
+
+    @staticmethod
+    def features(model_sample) :
+        '''
+        Compute a minimal set of features for antecedent a and mention i
+
+        :param markables: list of markables for the document
+        :param a: index of antecedent
+        :param i: index of mention
+        :returns: dict of features
+        :rtype: defaultdict
+        '''
+
+        f = defaultdict (float)
+        # STUDENT
+        full_ch = model_sample.mention_str
+        upper_cnt = 0
+        lower_cnt = 0
+        for c in full_ch :
+            if not c.isupper () :
+                continue
+            if c.isupper () :
+                upper_cnt += 1
+            if c.islower () :
+                lower_cnt += 1
+        if upper_cnt > 0 and lower_cnt == 0 :
+            f['all-upper'] = 1.0
+        if upper_cnt > 0 :
+            f['has-upper'] = 1.0
+        length = len (model_sample.mstr_token_seq)
+        if length == 1 :
+            f['len-1'] = 1.0
+        elif length == 2 :
+            f['len-2'] = 1.0
+        elif length == 3 :
+            f['len-3'] = 1.0
+        else :
+            f['len>=4'] = 1.0
+        # END STUDENT
+        return f
 
 class ELDirectEntityVec:
     def __init__(self, n_types, type_to_id_dict, el_system, wid_types_file):
