@@ -12,6 +12,13 @@ from models.fetentvecutils import ELDirectEntityVec
 from utils import datautils, utils
 
 
+def __get_l2_org_type_ids(type_vocab) :
+    org_type_ids = list ()
+    for i, t in enumerate (type_vocab) :
+        if t.startswith ('/organization') and t != '/organization' :
+            org_type_ids.append (i)
+    return org_type_ids
+
 def __get_l2_person_type_ids(type_vocab):
     person_type_ids = list()
     for i, t in enumerate(type_vocab):
@@ -259,8 +266,9 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     l2_person_type_ids, person_loss_vec = None, None
     if person_type_id is not None:
         l2_person_type_ids = __get_l2_person_type_ids(gres.type_vocab)
-        person_loss_vec = exputils.get_person_type_loss_vec(
-            l2_person_type_ids, gres.n_types, per_penalty, device)
+        l2_org_type_ids = __get_l2_org_type_ids (gres.type_vocab)
+        l2_person_type_ids.extend (l2_org_type_ids)
+        person_loss_vec = exputils.get_person_type_loss_vec (l2_person_type_ids, gres.n_types, per_penalty, device)
 
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
