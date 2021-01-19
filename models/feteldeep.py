@@ -213,15 +213,6 @@ class CopyMode(nn.Module):
         logits = logits.view (-1, n_types)
         return logits * entity_vecs
 
-    # def forward(self, x, entity_vecs, type_emb) :
-    #     type_embed_dim, n_types = type_emb.size ()
-    #     entity_vecs = entity_vecs.unsqueeze (dim=1)  # (B, 1, n_type) * (emb_size, n_type) -> (B, emb_size, n_type)
-    #     x = (entity_vecs * type_emb).mean (dim=2)
-    #     logits = torch.matmul (x.view (-1, 1, type_embed_dim),
-    #                            type_emb.view (-1, type_embed_dim, n_types))
-    #     logits = logits.view (-1, n_types)
-    #     return logits
-
 
 class GenerationMode(nn.Module):
     def __init__(self, input_size, type_embed_dim, use_mlp=False, mlp_hidden_dim=None, dp=0.5):
@@ -303,8 +294,8 @@ class NoName(BaseResModel):
             a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
             score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
             r = self.alpha (score)
-            r = torch.clamp (r, 0, self.r_max)
-            logits = r * a + (1 - r) * b
+            # r = torch.clamp (r, 0, self.r_max)
+            logits = a + r * b
         else :
             logits = b
         logits = logits.view(-1, self.n_types)
