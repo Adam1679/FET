@@ -273,80 +273,108 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         n_iter * n_batches, n_batches, lr_gamma))
     step = 0
     n_steps = n_iter * n_batches
-    while step < n_steps:
-        batch_idx = step % n_batches
-        batch_beg, batch_end = batch_idx * batch_size, min((batch_idx + 1) * batch_size, len(train_samples))
+    if not args.eval :
+        while step < n_steps :
+            batch_idx = step % n_batches
+            batch_beg, batch_end = batch_idx * batch_size, min ((batch_idx + 1) * batch_size, len (train_samples))
 
-        batch_samples = anchor_samples_to_model_samples(
-            train_samples[batch_beg:batch_end], gres.mention_token_id, gres.parent_type_ids_dict)
-        # entity_vecs should be the linked types
-        if rand_per:
-            entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples(el_entityvec, batch_samples, None, True, person_type_id, l2_person_type_ids, gres.type_vocab)
-        else:
-            entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples(el_entityvec, batch_samples, None, True)
+            batch_samples = anchor_samples_to_model_samples (
+                train_samples[batch_beg :batch_end], gres.mention_token_id, gres.parent_type_ids_dict)
+            # entity_vecs should be the linked types
+            if rand_per :
+                entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None, True,
+                                                                                person_type_id, l2_person_type_ids,
+                                                                                gres.type_vocab)
+            else :
+                entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None, True)
 
+            use_entity_vecs = True
+            model.train ()
+
+            (context_token_seqs, mention_token_idxs, mstrs, mstr_token_seqs, y_true
+             ) = exputils.get_mstr_cxt_label_batch_input (device, gres.n_types, batch_samples)
+
+            if use_entity_vecs :
+                for i in range (entity_vecs.shape[0]) :
+                    if np.random.uniform () < nil_rate :
+                        entity_vecs[i] = np.zeros (entity_vecs.shape[1], np.float32)
+                el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
+                entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
+            else :
+                entity_vecs = None
+            logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs)
+            loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
+            scheduler.step ()
+            optimizer.zero_grad ()
+            loss.backward ()
+            torch.nn.utils.clip_grad_norm_ (model.parameters (), 10.0, float ('inf'))
+            optimizer.step ()
+            losses.append (loss.data.cpu ().numpy ())
+
+            step += 1
+            if step % 1000 == 0 :
+                acc_tr, pacc_tr = -1, -1
+                acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
+                                                               device, gres, model, dev_samples, dev_entity_vecs,
+                                                               dev_el_probs, eval_batch_size,
+                                                               use_entity_vecs=use_entity_vecs,
+                                                               single_type_path=single_type_path,
+                                                               true_labels_dict=dev_true_labels_dict)
+
+                acc_t, _, maf1, mif1, test_results = eval_fetel (args,
+                                                                 device, gres, model, test_samples, test_entity_vecs,
+                                                                 test_el_probs, eval_batch_size,
+                                                                 use_entity_vecs=use_entity_vecs,
+                                                                 single_type_path=single_type_path,
+                                                                 true_labels_dict=test_true_labels_dict)
+
+                best_tag = '*' if acc_v > best_dev_acc else ''
+                logging.info (
+                    'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format (
+                        step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
+                writer.add_scalar ("acc_tr", acc_tr)
+                writer.add_scalar ("pacc_tr", pacc_tr)
+                writer.add_scalar ("accv", acc_v)
+                writer.add_scalar ("paccv", pacc_v)
+                writer.add_scalar ("acct", acc_t)
+                writer.add_scalar ("maf1", maf1)
+                writer.add_scalar ("mif1", mif1)
+
+                if acc_v > best_dev_acc and save_model_file :
+                    torch.save (model.state_dict (), save_model_file)
+                    logging.info ('model saved to {}'.format (save_model_file))
+
+                if dev_results_file is not None and acc_v > best_dev_acc :
+                    datautils.save_json_objs (dev_results, dev_results_file)
+                    logging.info ('dev reuslts saved {}'.format (dev_results_file))
+                if results_file is not None and acc_v > best_dev_acc :
+                    datautils.save_json_objs (test_results, results_file)
+                    logging.info ('test reuslts saved {}'.format (results_file))
+
+                if acc_v > best_dev_acc :
+                    best_dev_acc = acc_v
+                losses = list ()
+    else :
+        acc_tr, pacc_tr = -1, -1
         use_entity_vecs = True
-        model.train()
+        acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
+                                                       device, gres, model, dev_samples, dev_entity_vecs, dev_el_probs,
+                                                       eval_batch_size,
+                                                       use_entity_vecs=use_entity_vecs,
+                                                       single_type_path=single_type_path,
+                                                       true_labels_dict=dev_true_labels_dict)
 
-        (context_token_seqs, mention_token_idxs, mstrs, mstr_token_seqs, y_true
-         ) = exputils.get_mstr_cxt_label_batch_input (device, gres.n_types, batch_samples)
+        acc_t, _, maf1, mif1, test_results = eval_fetel (args,
+                                                         device, gres, model, test_samples, test_entity_vecs,
+                                                         test_el_probs, eval_batch_size,
+                                                         use_entity_vecs=use_entity_vecs,
+                                                         single_type_path=single_type_path,
+                                                         true_labels_dict=test_true_labels_dict)
 
-        if use_entity_vecs:
-            for i in range(entity_vecs.shape[0]):
-                if np.random.uniform() < nil_rate:
-                    entity_vecs[i] = np.zeros(entity_vecs.shape[1], np.float32)
-            el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
-            entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
-        else:
-            entity_vecs = None
-        logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs)
-        loss = model.get_loss(y_true, logits, person_loss_vec=person_loss_vec)
-        scheduler.step()
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0, float('inf'))
-        optimizer.step()
-        losses.append(loss.data.cpu().numpy())
-
-        step += 1
-        if step % 1000 == 0:
-            acc_tr, pacc_tr = -1, -1
-            acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
-                                                           device, gres, model, dev_samples, dev_entity_vecs, dev_el_probs, eval_batch_size,
-                                                           use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
-                                                           true_labels_dict=dev_true_labels_dict)
-
-            acc_t, _, maf1, mif1, test_results = eval_fetel (args,
-                                                             device, gres, model, test_samples, test_entity_vecs, test_el_probs, eval_batch_size,
-                                                             use_entity_vecs=use_entity_vecs, single_type_path=single_type_path,
-                                                             true_labels_dict=test_true_labels_dict)
-
-            best_tag = '*' if acc_v > best_dev_acc else ''
-            logging.info(
-                'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format(
-                    step, sum(losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
-            writer.add_scalar ("acc_tr", acc_tr)
-            writer.add_scalar ("pacc_tr", pacc_tr)
-            writer.add_scalar ("accv", acc_v)
-            writer.add_scalar ("paccv", pacc_v)
-            writer.add_scalar ("acct", acc_t)
-            writer.add_scalar ("maf1", maf1)
-            writer.add_scalar ("mif1", mif1)
-
-            if acc_v > best_dev_acc and save_model_file:
-                torch.save(model.state_dict(), save_model_file)
-                logging.info('model saved to {}'.format(save_model_file))
-
-            if dev_results_file is not None and acc_v > best_dev_acc:
-                datautils.save_json_objs(dev_results, dev_results_file)
-                logging.info('dev reuslts saved {}'.format(dev_results_file))
-            if results_file is not None and acc_v > best_dev_acc:
-                datautils.save_json_objs(test_results, results_file)
-                logging.info('test reuslts saved {}'.format(results_file))
-
-            if acc_v > best_dev_acc:
-                best_dev_acc = acc_v
-            losses = list()
+        best_tag = '*' if acc_v > best_dev_acc else ''
+        logging.info (
+            'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format (
+                step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
 
 
 def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,

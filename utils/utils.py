@@ -127,7 +127,9 @@ def strict_acc(true_labels_dict, pred_labels_dict, test=True) :
     name = "./test.tmp.txt" if test else "./val.tmp.txt"
     with open (name, "w") as f :
         for k, v in sorted_acc_dict :
-            f.write ("{}: {}".format (k, v))
+            hit = hit_dict.get (k, 0)
+            miss = miss_dict.get (k, 0)
+            f.write ("{}: {} {}/{}".format (k, v, hit, miss))
 
     return hit_cnt / len(true_labels_dict)
 
