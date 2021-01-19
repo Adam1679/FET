@@ -397,7 +397,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
 
 
-def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs, feats,
+def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
+               feats=None,
                batch_size=32,
                use_entity_vecs=True,
                single_type_path=False,
