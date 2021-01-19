@@ -107,7 +107,7 @@ def macrof1(true_labels_dict, pred_labels_dict):
     return f1
 
 
-def strict_acc(true_labels_dict, pred_labels_dict):
+def strict_acc(true_labels_dict, pred_labels_dict, test=True) :
     hit_cnt = 0
     hit_dict = {}
     miss_dict = {}
@@ -124,7 +124,8 @@ def strict_acc(true_labels_dict, pred_labels_dict):
         r = v / (v + miss_dict.get (k, 0))
         acc_dict[k] = r
     sorted_acc_dict = sorted (acc_dict.items (), key=lambda x : x[1])
-    with open ("./tmp.txt", "w") as f :
+    name = "./test.tmp.txt" if test else "./val.tmp.txt"
+    with open (name, "w") as f :
         for k, v in sorted_acc_dict :
             f.write ("{}: {}".format (k, v))
 
