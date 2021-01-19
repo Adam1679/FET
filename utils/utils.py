@@ -109,12 +109,26 @@ def macrof1(true_labels_dict, pred_labels_dict):
 
 def strict_acc(true_labels_dict, pred_labels_dict):
     hit_cnt = 0
+    hit_dict = {}
+    miss_dict = {}
     for wid, labels_true in true_labels_dict.items():
         labels_pred = pred_labels_dict[wid]
+        type_name = labels_true[0]
         if labels_full_match(labels_true, labels_pred):
             hit_cnt += 1
-    return hit_cnt / len(true_labels_dict)
+            hit_dict[type_name] = hit_dict.get (type_name, 0) + 1
+        else :
+            miss_dict[type_name] = miss_dict.get (type_name, 0) + 1
+    acc_dict = {}
+    for k, v in hit_dict.items () :
+        r = v / (v + miss_dict.get (k, 0))
+        acc_dict[k] = r
+    sorted_acc_dict = sorted (acc_dict.items (), key=lambda x : x[1])
+    with open ("./tmp.txt", "w") as f :
+        for k, v in sorted_acc_dict :
+            f.write ("{}: {}".format (k, v))
 
+    return hit_cnt / len(true_labels_dict)
 
 def partial_acc(true_labels_dict, pred_labels_dict):
     hit_cnt = 0
