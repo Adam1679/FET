@@ -88,7 +88,9 @@ class BaseResModel(nn.Module):
         # lstm_output_r = F.dropout(lstm_output_r, self.dropout, training)
         return lstm_output_r
 
-    def get_loss(self, true_type_vecs, scores, margin=1.0, person_loss_vec=None) :
+    def get_loss(self, true_type_vecs, scores, margin=1\
+
+        .0, person_loss_vec = None) :
         tmp1 = torch.sum (true_type_vecs * F.relu (margin - scores), dim=1)
         # tmp2 = torch.sum((1 - true_type_vecs) * F.relu(margin + scores), dim=1)
         tmp2 = (1 - true_type_vecs) * F.relu (margin + scores)

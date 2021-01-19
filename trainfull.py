@@ -42,8 +42,12 @@ def train_model(args):
     train_data_pkl = data_prefix + '-train.pkl'
     # save_model_file = None
     # results_file = None
-    save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.pl'.format (
-        os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
+    if args.copy :
+        save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.copy.pl'.format (
+            os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
+    else :
+        save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.pl'.format (
+            os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
     results_file = os.path.join (config.DATA_DIR, 'result/metric-{}-{}.txt'.format (
         os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
     noel_preds_file = datafiles['noel-typing-results']
