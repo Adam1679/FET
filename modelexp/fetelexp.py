@@ -306,7 +306,6 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 for i in range (entity_vecs.shape[0]) :
                     if np.random.uniform () < nil_rate :
                         entity_vecs[i] = np.zeros (entity_vecs.shape[1], np.float32)
-                        el_probs[i] = 0.0
                 el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
                 entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
             else :

@@ -90,7 +90,6 @@ class BaseResModel(nn.Module):
 
     def get_loss(self, true_type_vecs, scores, margin=1.0, person_loss_vec=None) :
         tmp1 = torch.sum (true_type_vecs * F.relu (margin - scores), dim=1)
-        # tmp2 = torch.sum((1 - true_type_vecs) * F.relu(margin + scores), dim=1)
         tmp2 = (1 - true_type_vecs) * F.relu (margin + scores)
         if person_loss_vec is not None :
             tmp2 *= person_loss_vec.view (-1, self.n_types)
@@ -224,11 +223,11 @@ class GenerationMode(nn.Module):
             layers.append (nn.Linear (input_size, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dp))
+            # layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dp))
+            # layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, type_embed_dim))
 
         self.fc = nn.Sequential(*layers)
