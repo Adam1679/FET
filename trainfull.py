@@ -42,7 +42,7 @@ def train_model(args):
     train_data_pkl = data_prefix + '-train.pkl'
     # save_model_file = None
     # results_file = None
-    save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.txt'.format (
+    save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.pl'.format (
         os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
     results_file = os.path.join (config.DATA_DIR, 'result/metric-{}-{}.txt'.format (
         os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
@@ -77,6 +77,7 @@ if __name__ == '__main__':
     parser.add_argument('--comment', '-m', required=True, type=str)
     parser.add_argument ('--resume', '-r', type=str, default="")
     parser.add_argument ('--copy', '-c', action="store_false")
+    parser.add_argument ('--eval', '-e', action="store_true")
 
     args = parser.parse_args()
     torch.random.manual_seed(config.RANDOM_SEED)
