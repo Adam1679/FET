@@ -357,8 +357,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 writer.add_scalar ("mif1", mif1)
 
                 if acc_v > best_dev_acc and save_model_file :
-                    torch.save (model.state_dict (), "{}.{}".format (step, save_model_file))
-                    logging.info ('model saved to {}'.format ("{}.{}".format (save_model_file)))
+                    torch.save (model.state_dict (), "{}.{}".format (save_model_file, step))
+                    logging.info ('model saved to {}'.format ("{}.{}".format (save_model_file, step)))
 
                 if dev_results_file is not None and acc_v > best_dev_acc :
                     datautils.save_json_objs (dev_results, dev_results_file)
