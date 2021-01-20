@@ -281,7 +281,7 @@ class NoName(BaseResModel):
         self.feat_off_idx = {feat : 2 * idx + 1 for idx, feat in enumerate (feat_set)}
         self.feat_embs = nn.Embedding (len (feat_set) * 2, feat_emb_dim)
         self.feat_emb_dim = feat_emb_dim
-        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + feat_emb_dim * len (feat_set)
+        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
 
@@ -305,14 +305,14 @@ class NoName(BaseResModel):
         :return:
         """
         batch_size = len(context_token_seqs)
-        ids = torch.zeros ((batch_size, len (self.feat_set)), device=entity_vecs.device).long ()
-        for i in range (batch_size) :
-            for idx, feat in enumerate (self.feat_set) :
-                if feat in pos_feats[i] :
-                    ids[i, idx] = self.feat_on_idx[feat]
-                else :
-                    ids[i, idx] = self.feat_off_idx[feat]
-        feat_emb = self.feat_embs (ids).view (batch_size, -1)
+        # ids = torch.zeros ((batch_size, len (self.feat_set)), device=entity_vecs.device).long ()
+        # for i in range (batch_size) :
+        #     for idx, feat in enumerate (self.feat_set) :
+        #         if feat in pos_feats[i] :
+        #             ids[i, idx] = self.feat_on_idx[feat]
+        #         else :
+        #             ids[i, idx] = self.feat_off_idx[feat]
+        # feat_emb = self.feat_embs (ids).view (batch_size, -1)
         context_token_seqs, seq_lens, mention_token_idxs, back_idxs = modelutils.get_len_sorted_context_seqs_input(
             self.device, context_token_seqs, mention_token_idxs)
 
@@ -327,7 +327,7 @@ class NoName(BaseResModel):
         name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output, feat_emb), dim=1))
+        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
         b = self.generate_mode (cat_output, self.type_embeddings)
         if self.copy :
             a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
