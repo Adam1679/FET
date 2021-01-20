@@ -241,6 +241,28 @@ class GenerationMode(nn.Module):
         return logits
 
 
+class AttenMentionEncoder (nn.Module) :
+    def __init__(self, emb_size) :
+        super ().__init__ ()
+        self.fc = nn.Linear (emb_size, 1)
+
+    def forward(self, device, embedding_layer, token_seqs) :
+        lens = torch.tensor ([len (seq) for seq in token_seqs], dtype=torch.float32, device=device
+                             ).view (-1, 1)
+        seqs = [torch.tensor (seq, dtype=torch.long, device=device) for seq in token_seqs]
+        seqs = torch.nn.utils.rnn.pad_sequence (seqs, batch_first=True,
+                                                padding_value=embedding_layer.padding_idx)
+        token_vecs = embedding_layer (seqs)  # (B, T, emb)
+        att = self.fc (token_vecs)  # B x T
+        mask = torch.ones_like (att, device=device).bool ()
+        for i in range (len (lens)) :
+            length = lens[i]
+            mask[i, :length] = False
+        att.masked_fill (mask, -1e9)
+        att = att.softmax (dim=1)
+        return (token_vecs * att).sum (dim=1)
+
+
 class NoName(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
                  type_embed_dim, feat_set,
@@ -271,6 +293,7 @@ class NoName(BaseResModel):
                                     nn.Linear(256, 1),
                                     nn.Sigmoid())
         self.r_max = 0.45
+        self.word_emb = AttenMentionEncoder (self.word_vec_dim)
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
@@ -301,7 +324,8 @@ class NoName(BaseResModel):
 
         # step 2: mention str vector
         # (256, 300)
-        name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
+        # name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
+        name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output, feat_emb), dim=1))

@@ -164,13 +164,12 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         pred = pred_labels_dict_te[k]
         tot = len (v)
         cnt = 0
-        one_type = test_true_labels_dict[k][0]
         for p in pred :
             if p in test_true_labels_dict[k] :
                 cnt += 1
-                hit[one_type] = hit.get (one_type, 0) + 1
+                hit[p] = hit.get (p, 0) + 1
             else :
-                miss[one_type] = miss.get (one_type, 0) + 1
+                miss[p] = miss.get (p, 0) + 1
 
         # print ("{}:{} {}/{} {}".format (k, one_type, cnt, tot, te_el_probs_dict[k]))
     for k, v in hit.items () :
@@ -186,10 +185,9 @@ def eval_data(device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec,
         for p in pred :
             if p in dev_true_labels_dict[k] :
                 cnt += 1
-                hit[one_type] = hit.get (one_type, 0) + 1
+                hit[p] = hit.get (p, 0) + 1
             else :
-                miss[one_type] = miss.get (one_type, 0) + 1
-        one_type = dev_true_labels_dict[k][0]
+                miss[p] = miss.get (p, 0) + 1
         # print ("{}: {} {}/{} {}".format (k, one_type, cnt, tot, dv_el_probs_dict[k]))
     for k, v in hit.items () :
         print ("{}: {}/{}".format (k, v, v + miss.get (k, 0)))
@@ -276,8 +274,6 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     l2_person_type_ids, person_loss_vec = None, None
     if person_type_id is not None:
         l2_person_type_ids = __get_l2_person_type_ids(gres.type_vocab)
-        l2_org_type_ids = __get_l2_org_type_ids (gres.type_vocab)
-        # l2_person_type_ids.extend (l2_org_type_ids)
         person_loss_vec = exputils.get_person_type_loss_vec (l2_person_type_ids, gres.n_types, per_penalty, device)
 
     dev_results_file = None
@@ -361,8 +357,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 writer.add_scalar ("mif1", mif1)
 
                 if acc_v > best_dev_acc and save_model_file :
-                    torch.save (model.state_dict (), save_model_file)
-                    logging.info ('model saved to {}'.format (save_model_file))
+                    torch.save (model.state_dict (), "{}.{}".format (step, save_model_file))
+                    logging.info ('model saved to {}'.format ("{}.{}".format (save_model_file)))
 
                 if dev_results_file is not None and acc_v > best_dev_acc :
                     datautils.save_json_objs (dev_results, dev_results_file)
