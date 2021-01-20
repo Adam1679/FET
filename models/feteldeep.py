@@ -247,8 +247,7 @@ class AttenMentionEncoder (nn.Module) :
         self.fc = nn.Linear (emb_size, 1)
 
     def forward(self, device, embedding_layer, token_seqs) :
-        lens = torch.tensor ([len (seq) for seq in token_seqs], dtype=torch.float32, device=device
-                             ).view (-1, 1)
+        lens = [len (seq) for seq in token_seqs]
         seqs = [torch.tensor (seq, dtype=torch.long, device=device) for seq in token_seqs]
         seqs = torch.nn.utils.rnn.pad_sequence (seqs, batch_first=True,
                                                 padding_value=embedding_layer.padding_idx)
