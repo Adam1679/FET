@@ -225,11 +225,9 @@ class CopyMode(nn.Module):
             layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim, bias=False))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
 
         self.fc = nn.Sequential (*layers)
@@ -328,13 +326,13 @@ class NoName(BaseResModel):
             self.copy_mode = CopyMode (linear_map_input_dim, type_embed_dim, dp=dropout)
 
         self.generate_mode = GenerationMode(linear_map_input_dim, type_embed_dim, dp=dropout)
-        self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1 + self.n_types, 256),
-                                    nn.ReLU (),
-                                    nn.Linear (256, 256),
-                                    nn.ReLU (),
-                                    nn.Linear (256, 1),
-                                    nn.Sigmoid())
-        self.r_max = 0.45
+        # if self.copy:
+        #     self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1 + self.n_types, 256),
+        #                                 nn.ReLU (),
+        #                                 nn.Linear (256, 256),
+        #                                 nn.ReLU (),
+        #                                 nn.Linear (256, self.n_types),
+        #                                 nn.Sigmoid())
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
@@ -367,8 +365,8 @@ class NoName(BaseResModel):
         if self.copy :
             a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
             score = torch.cat ((cat_output, el_probs.view (-1, 1), entity_vecs), dim=1)
-            r = self.alpha (score)
-            logits = r * a + b
+            # r = self.alpha (score)
+            logits = a + b
         else :
             logits = b
         logits = logits.view(-1, self.n_types)
