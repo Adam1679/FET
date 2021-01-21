@@ -132,7 +132,7 @@ class FETELStack(BaseResModel):
             self.lin2_bn = nn.BatchNorm1d(mlp_hidden_dim)
             self.linear_map3 = nn.Linear(mlp_hidden_dim, type_embed_dim)
 
-    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs):
+    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, *args) :
         """
 
         :param context_token_seqs: List[List[Int]], len(List) = batch_size  sent_tokens[:pos_beg] + [mention_token_id] + sent_tokens[pos_end:]
