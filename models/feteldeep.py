@@ -223,11 +223,9 @@ class GenerationMode(nn.Module):
             layers.append (nn.Linear (input_size, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            # layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            # layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, type_embed_dim))
 
         self.fc = nn.Sequential(*layers)
@@ -333,8 +331,7 @@ class NoName(BaseResModel):
             a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
             score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
             r = self.alpha (score)
-            # r = torch.clamp (r, 0, self.r_max)
-            logits = a + r * b
+            logits = r * a + b
         else :
             logits = b
         logits = logits.view(-1, self.n_types)
