@@ -23,7 +23,7 @@ def train_model(args):
     feat_dim = 16
     lr = 0.001
     # nil_rate = 0.5
-    nil_rate = 0.2
+    nil_rate = 0.7
     use_mlp = True
     rand_per = True
     stack_lstm = True
