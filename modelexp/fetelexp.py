@@ -279,6 +279,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
     optimizer = torch.optim.Adam (filter (lambda p : p.requires_grad, model.parameters ()), lr=learning_rate)
+    nelement = sum ([p.nelement () for p in model.parameters () if not p.requires_grad])
+    logging.info ("number of training params is {}".format (nelement))
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=n_batches, gamma=lr_gamma)
     losses = list()
     best_dev_acc = -1
