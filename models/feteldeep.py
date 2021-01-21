@@ -177,7 +177,7 @@ class FETELStack(BaseResModel):
 
 
 class AttCopyMode (nn.Module) :
-    def __init__(self, input_size, out_size, n_type, use_mlp=False, mlp_hidden_dim=None, dp=0.5, n_head=2) :
+    def __init__(self, input_size, out_size, n_type, use_mlp=False, mlp_hidden_dim=None, dp=0.5, n_head=2, kdim=64) :
         super ().__init__ ()
         layers = []
         if not use_mlp :
@@ -189,12 +189,13 @@ class AttCopyMode (nn.Module) :
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
             layers.append (nn.Dropout (dp))
-            layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
-        for i in range (n_head) :
-            self.add_module ("key_{}".format (i), nn.Sequential (*layers))
-            self.value = nn.Linear (out_size, out_size)
-
-        self.fc = nn.Linear (out_size, n_type)
+            layers.append (nn.Linear (mlp_hidden_dim, kdim * n_head, bias=False))
+        self.kdim = kdim
+        self.query = nn.Sequential (*layers)
+        self.value = nn.Linear (out_size, out_size * n_head)
+        self.key = nn.Linear (out_size, kdim * n_head)
+        self.out = nn.Sequential (nn.Linear (out_size * n_head, out_size), nn.ReLU ())
+        self.dp = nn.Dropout (dp)
 
     def forward(self, x, entity_vecs, type_emb, topk=2) :
         """x: (256, 800)
@@ -202,14 +203,15 @@ class AttCopyMode (nn.Module) :
            type_emb: (emb_size, n_type)
         """
         bs, n_type = entity_vecs.size ()
-        x = self.key (x)  # # (B, value_size)
-        y = self.value (type_emb.transpose (0, 1)).transpose (0, 1)  # (value_size, n_type)
+        x = self.query (x)  # # (B, kdim * n_head)
+        key = self.key (type_emb.transpose (0, 1)).transpose (0, 1)  # (kdim * n_head, n_type)
+        value = self.value (type_emb.transpose (0, 1)).transpose (0, 1)  # (out_size * n_head, n_type)
         type_embed_dim, n_types = type_emb.size ()
-        att = x @ y  # (B, n_type)
+        att = (x / self.kdim ** 2) @ key  # (B, n_type)
         att.masked_fill (~entity_vecs.bool (), -1e9)
-        att = att.softmax (dim=1)
-        emb = att @ type_emb.transpose (0, 1)  # (B, emb_size)
-        return logits * entity_vecs
+        att = self.dp (att.softmax (dim=1))
+        emb = att @ value.transpose (0, 1)  # (B, n_type)
+        return self.out (emb)
 
 class CopyMode(nn.Module):
     def __init__(self, input_size, out_size, use_mlp=False, mlp_hidden_dim=None, dp=0.5):
@@ -218,6 +220,7 @@ class CopyMode(nn.Module):
         if not use_mlp :
             layers.append (nn.Dropout(dp))
             layers.append (nn.Linear (input_size, out_size, bias=False))
+            layers.append (nn.ReLU ())
         else :
             mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
             layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
@@ -229,6 +232,7 @@ class CopyMode(nn.Module):
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
             layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
+            layers.append (nn.ReLU ())
 
         self.fc = nn.Sequential (*layers)
 
@@ -304,7 +308,8 @@ class NoName(BaseResModel):
                  mlp_hidden_dim=None,
                  concat_lstm=False,
                  copy=True,
-                 feat_emb_dim=16) :
+                 feat_emb_dim=16,
+                 att_copy=False) :
         super(NoName, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
@@ -318,20 +323,21 @@ class NoName(BaseResModel):
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
+        if att_copy :
+            self.copy_mode = AttCopyMode (linear_map_input_dim, type_embed_dim, n_type=self.n_types, dp=dropout)
+        else :
+            self.copy_mode = CopyMode (linear_map_input_dim, type_embed_dim, dp=dropout)
 
-        self.copy_mode = CopyMode(linear_map_input_dim, type_embed_dim, dp=dropout)
         self.generate_mode = GenerationMode(linear_map_input_dim, type_embed_dim, dp=dropout)
-        self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1, 256),
-                                    nn.Tanh(),
-                                    nn.Linear(256, 1),
+        self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1 + self.n_types, 256),
+                                    nn.ReLU (),
+                                    nn.Linear (256, 256),
+                                    nn.ReLU (),
+                                    nn.Linear (256, 1),
                                     nn.Sigmoid())
         self.r_max = 0.45
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
-        # if self.copy :
-        #     for name, param in self.named_parameters () :
-        #         if not name.startswith ('copy_mode') and not name.startswith ('alpha') :
-        #             param.requires_grad = False
-        #             print ("fix ", name)
+
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
 
@@ -361,7 +367,7 @@ class NoName(BaseResModel):
         b = self.generate_mode (cat_output, self.type_embeddings)
         if self.copy :
             a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
-            score = torch.cat ((cat_output, el_probs.view (-1, 1)), dim=1)
+            score = torch.cat ((cat_output, el_probs.view (-1, 1), entity_vecs), dim=1)
             r = self.alpha (score)
             logits = r * a + b
         else :
