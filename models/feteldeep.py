@@ -291,7 +291,10 @@ class NoName(BaseResModel):
                                     nn.Sigmoid())
         self.r_max = 0.45
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
-
+        if self.copy :
+            for name, param in self.named_parameters () :
+                if not name.startswith ('copy_mode') :
+                    param.requires_grad = False
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
 
