@@ -21,7 +21,7 @@ def train_model(args):
     pred_mlp_hdim = 500
     n_iter = 15
     feat_dim = 16
-    lr = 0.0001
+    lr = 0.001
     nil_rate = 0.5
     use_mlp = True
     rand_per = True
