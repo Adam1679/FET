@@ -293,7 +293,7 @@ class NoName(BaseResModel):
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
         if self.copy :
             for name, param in self.named_parameters () :
-                if not name.startswith ('copy_mode') :
+                if not name.startswith ('copy_mode') and not name.startswith ('alpha') :
                     param.requires_grad = False
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
