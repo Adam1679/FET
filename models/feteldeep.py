@@ -176,39 +176,40 @@ class FETELStack(BaseResModel):
         return logits
 
 
-# class AttCopyMode(nn.Module):
-#     def __init__(self, input_size, out_size, use_mlp=False, mlp_hidden_dim=None, dp=0.5):
-#         super().__init__()
-#         layers = []
-#         if not use_mlp :
-#             layers.append (nn.Dropout(dp))
-#             layers.append (nn.Linear (input_size, out_size, bias=False))
-#         else :
-#             mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-#             layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
-#             layers.append (nn.ReLU ())
-#             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-#             layers.append (nn.Dropout (dp))
-#             layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
-#
-#         self.key = nn.Sequential (*layers)
-#         self.value = nn.Linear(out_size, out_size)
-#
-#     def forward(self, x, entity_vecs, type_emb, topk=2) :
-#         """x: (256, 800)
-#            entity_vecs: (B, n_type)
-#            type_emb: (emb_size, n_type)
-#         """
-#         x = self.key (x)
-#         y = self.value(type_emb.transpose(0, 1))
-#         type_embed_dim, n_types = type_emb.size()
-#         nonzeros = torch.nonzero(entity_vecs)
-#         types = []
-#         bs = x.size(0)
-#         for i in range(bs):
-#             x = nonzeros[nonzeros[:, 0] == i]
-#
-#         return logits * entity_vecs
+class AttCopyMode (nn.Module) :
+    def __init__(self, input_size, out_size, n_type, use_mlp=False, mlp_hidden_dim=None, dp=0.5, n_head=2) :
+        super ().__init__ ()
+        layers = []
+        if not use_mlp :
+            layers.append (nn.Dropout (dp))
+            layers.append (nn.Linear (input_size, out_size, bias=False))
+        else :
+            mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
+            layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
+            layers.append (nn.ReLU ())
+            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+            layers.append (nn.Dropout (dp))
+            layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
+        for i in range (n_head) :
+            self.add_module ("key_{}".format (i), nn.Sequential (*layers))
+            self.value = nn.Linear (out_size, out_size)
+
+        self.fc = nn.Linear (out_size, n_type)
+
+    def forward(self, x, entity_vecs, type_emb, topk=2) :
+        """x: (256, 800)
+           entity_vecs: (B, n_type)
+           type_emb: (emb_size, n_type)
+        """
+        bs, n_type = entity_vecs.size ()
+        x = self.key (x)  # # (B, value_size)
+        y = self.value (type_emb.transpose (0, 1)).transpose (0, 1)  # (value_size, n_type)
+        type_embed_dim, n_types = type_emb.size ()
+        att = x @ y  # (B, n_type)
+        att.masked_fill (~entity_vecs.bool (), -1e9)
+        att = att.softmax (dim=1)
+        emb = att @ type_emb.transpose (0, 1)  # (B, emb_size)
+        return logits * entity_vecs
 
 class CopyMode(nn.Module):
     def __init__(self, input_size, out_size, use_mlp=False, mlp_hidden_dim=None, dp=0.5):
@@ -291,6 +292,7 @@ class AttenMentionEncoder (nn.Module) :
             mask[i, :length] = False
         att.masked_fill (mask, -1e9)
         att = att.softmax (dim=1)
+
         return (token_vecs * att).sum (dim=1)
 
 
