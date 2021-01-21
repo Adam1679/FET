@@ -235,7 +235,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         model = model.cuda ()
     if args.resume != "" :
         logging.info ("resume from {}".format (args.resume))
-        model.load_state_dict (torch.load (args.resume))
+        model.load_state_dict (torch.load (args.resume), strict=False)
 
     # 每个sample都是一个长度为7的tuple：
     train_samples = datautils.load_pickle_data(train_samples_pkl)
