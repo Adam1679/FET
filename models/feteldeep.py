@@ -220,7 +220,6 @@ class CopyMode(nn.Module):
         if not use_mlp :
             layers.append (nn.Dropout(dp))
             layers.append (nn.Linear (input_size, out_size, bias=False))
-            layers.append (nn.ReLU ())
         else :
             mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
             layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
@@ -232,7 +231,6 @@ class CopyMode(nn.Module):
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
             layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
-            layers.append (nn.ReLU ())
 
         self.fc = nn.Sequential (*layers)
 
@@ -246,6 +244,7 @@ class CopyMode(nn.Module):
         logits = torch.matmul (x.view (-1, 1, type_embed_dim),
                                type_emb.view (-1, type_embed_dim, n_types))
         logits = logits.view (-1, n_types)
+        logits = F.relu (logits)
         return logits * entity_vecs
 
 
