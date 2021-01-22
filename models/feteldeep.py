@@ -115,7 +115,8 @@ class FETELStack(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
                  type_embed_dim, dropout=0.5, use_mlp=False, mlp_hidden_dim=None, concat_lstm=False):
         super(FETELStack, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
-                                         context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
+                                         context_lstm_hidden_dim, type_embed_dim, dropout=dropout,
+                                         concat_lstm=concat_lstm)
         self.use_mlp = use_mlp
         # self.dropout_layer = nn.Dropout(dropout)
 
@@ -150,7 +151,7 @@ class FETELStack(BaseResModel):
         context_lstm_output = self.get_context_lstm_output(context_token_seqs, seq_lens, mention_token_idxs, batch_size) # (B, D) or (B, 2*D)
 
         # step 1: context
-        context_lstm_output = context_lstm_output[back_idxs] #TODO: ????
+        context_lstm_output = context_lstm_output[back_idxs]
 
         # step 2: mention str vector
         name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
@@ -237,11 +238,11 @@ class CopyMode(nn.Module):
            entity_vecs: (B, n_type)
            type_emb: (emb_size, n_type)
         """
-        x = self.fc (x)
+        x = self.fc (x)  # (B, 1, D) x (1, D, O)
         type_embed_dim, n_types = type_emb.size ()
         logits = torch.matmul (x.view (-1, 1, type_embed_dim),
                                type_emb.view (-1, type_embed_dim, n_types))
-        logits = logits.view (-1, n_types)
+        logits = logits.view (-1, n_types)  # (B, O)
         logits = F.relu (logits)
         return logits * entity_vecs
 
@@ -259,9 +260,11 @@ class GenerationMode(nn.Module):
             layers.append (nn.Linear (input_size, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+            layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
             layers.append (nn.ReLU ())
             layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+            layers.append (nn.Dropout (dp))
             layers.append (nn.Linear (mlp_hidden_dim, type_embed_dim))
 
         self.fc = nn.Sequential(*layers)
@@ -299,41 +302,74 @@ class AttenMentionEncoder (nn.Module) :
 
 class NoName(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
-                 type_embed_dim, feat_set,
+                 type_embed_dim,
                  dropout=0.5,
                  use_mlp=False,
                  mlp_hidden_dim=None,
                  concat_lstm=False,
                  copy=True,
                  feat_emb_dim=16,
-                 att_copy=False) :
+                 att_copy=False,
+                 type_emb_path=None) :
         super(NoName, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
         self.copy = copy
-        feat_set = sorted (list (feat_set))
-        self.feat_set = feat_set
-        self.feat_on_idx = {feat : 2 * idx for idx, feat in enumerate (feat_set)}
-        self.feat_off_idx = {feat : 2 * idx + 1 for idx, feat in enumerate (feat_set)}
-        self.feat_embs = nn.Embedding (len (feat_set) * 2, feat_emb_dim)
-        self.feat_emb_dim = feat_emb_dim
+        if type_emb_path is not None :
+            self.pre_train_type_embedding = torch.autograd.Variable (
+                torch.from_numpy (self._load_type_emb (type_emb_path, self.type_id_dict)), requires_grad=False)
+            self.pre_train_type_embedding = self.pre_train_type_embedding.to (device)
+        else :
+            self.pre_train_type_embedding = self.type_embeddings
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
-        if att_copy :
-            self.copy_mode = AttCopyMode (linear_map_input_dim, type_embed_dim, n_type=self.n_types, dp=dropout)
+        hidden_size = 256
+        layers = []
+        if not use_mlp :
+            layers.append (nn.Dropout (dropout))
+            layers.append (nn.Linear (linear_map_input_dim, type_embed_dim, bias=False))
+            # layers.append (nn.Tanh ())
         else :
-            self.copy_mode = CopyMode (linear_map_input_dim, type_embed_dim, dp=dropout)
+            mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
+            layers.append (nn.Linear (linear_map_input_dim, mlp_hidden_dim))
+            layers.append (nn.ReLU ())
+            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+            layers.append (nn.Dropout (dropout))
+            layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
+            layers.append (nn.ReLU ())
+            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+            layers.append (nn.Dropout (dropout))
+            layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
 
-        self.generate_mode = GenerationMode(linear_map_input_dim, type_embed_dim, dp=dropout)
-        # if self.copy:
-        #     self.alpha = nn.Sequential (nn.Linear (linear_map_input_dim + 1 + self.n_types, 256),
-        #                                 nn.ReLU (),
-        #                                 nn.Linear (256, 256),
-        #                                 nn.ReLU (),
-        #                                 nn.Linear (256, self.n_types),
-        #                                 nn.Sigmoid())
+        self.encoder = nn.Sequential (*layers)
+        # if att_copy :
+        #     self.copy_mode = AttCopyMode (linear_map_input_dim, type_embed_dim, n_type=self.n_types, dp=dropout)
+        # else :
+        #     self.copy_mode = CopyMode (linear_map_input_dim, type_embed_dim, dp=dropout)
+        if self.copy :
+            self.alpha = nn.Sequential (nn.Linear (hidden_size + 1 + self.n_types, 1), nn.Tanh ())
+        self.generate_mode = nn.Linear (hidden_size, self.type_embed_dim)
+        self.copy_mode = nn.Linear (self.type_embed_dim, hidden_size)
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
+
+    def _load_type_emb(self, path, type_id_dict) :
+        type2vec = {}
+        with open (path, 'r') as f :
+            line = f.readline ()
+            n_type = int (line.split ()[0])
+            dim = int (line.split ()[1])
+            for line in f :
+                segs = line.strip ().split ()
+                if len (segs) == 2 :
+                    continue
+                typename = segs[0]
+                vect = np.array (segs[1 :]).astype (np.float)
+                type2vec[typename] = vect
+        arr = np.zeros ((n_type, dim))
+        for name, vec in type2vec.items () :
+            arr[type_id_dict[name], :] = vec
+        return arr
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
@@ -361,13 +397,17 @@ class NoName(BaseResModel):
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
-        b = self.generate_mode (cat_output, self.type_embeddings)
+        state = self.encoder (cat_output)  # (B, D)
+        g = self.generate_mode (state)  # (B, type_dim)
+        g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
+                          self.pre_train_type_emb.view (-1, self.type_embed_dim, self.n_types))  # (B, O)
         if self.copy :
-            a = self.copy_mode (cat_output, entity_vecs, self.type_embeddings)
-            score = torch.cat ((cat_output, el_probs.view (-1, 1), entity_vecs), dim=1)
-            # r = self.alpha (score)
-            logits = a + b
+            c = self.copy_mode (self.pre_train_type_emb.transpose (0, 1)).transpose (0, 1)  # (D, O)
+            c = torch.matmul (state.unsqueeze (dim=1), c.unsqueeze (dim=0))  # (B, O)
+            r = self.alpha (torch.cat ([state, el_probs.unsqueeze (1), entity_vecs], dim=1))
+            c = F.relu (c * r * entity_vecs)
+            logits = c + g
         else :
-            logits = b
+            logits = g
         logits = logits.view(-1, self.n_types)
         return logits

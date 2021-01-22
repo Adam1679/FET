@@ -42,6 +42,8 @@ def train_model(args):
     data_prefix = datafiles['anchor-train-data-prefix']
     dev_data_pkl = data_prefix + '-dev.pkl'
     train_data_pkl = data_prefix + '-train.pkl'
+
+    type_emb_path = datafiles['type-emb']
     # save_model_file = None
     # results_file = None
     if args.copy :
@@ -60,7 +62,7 @@ def train_model(args):
     print('done', flush=True)
 
     # 存储了所有的token的embedding， type的名字，id， 还有一些parent type的名字，id
-    gres = exputils.GlobalRes(datafiles['type-vocab'], word_vecs_file)
+    gres = exputils.GlobalRes (datafiles['type-vocab'], word_vecs_file, datafiles['type-emb'])
     # 存储了token对应的types的id，以及entity linking的对象
     el_entityvec = fetentvecutils.ELDirectEntityVec(gres.n_types, gres.type_id_dict, el_system, datafiles['wid-type-file'])
 
@@ -72,7 +74,8 @@ def train_model(args):
                           context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
                           dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
                           save_model_file=save_model_file, nil_rate=nil_rate, single_type_path=single_type_path,
-                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file, feat_dim=feat_dim)
+                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file,
+                          type_emb_path=type_emb_path)
 
 
 if __name__ == '__main__':

@@ -1,11 +1,13 @@
-import torch
-from torch import nn
+import random
+from typing import List
+
 # from collections import namedtuple
 import numpy as np
-from typing import List
-import random
-from utils import utils, datautils
+import torch
+from torch import nn
+
 import config
+from utils import utils, datautils
 
 
 class ModelSample:
@@ -27,7 +29,7 @@ class LabeledModelSample(ModelSample):
 
 
 class GlobalRes:
-    def __init__(self, type_vocab_file, word_vecs_file):
+    def __init__(self, type_vocab_file, word_vecs_file, type_emb_path=None) :
         self.type_vocab, self.type_id_dict = datautils.load_type_vocab(type_vocab_file)
         self.parent_type_ids_dict = utils.get_parent_type_ids_dict(self.type_id_dict)
         self.n_types = len(self.type_vocab)

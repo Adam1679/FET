@@ -1,6 +1,6 @@
-from platform import platform
-from os.path import join
 import socket
+from os.path import join
+from platform import platform
 
 if platform().startswith('Windows'):
     PLATFORM = 'Windows'
@@ -42,7 +42,8 @@ FIGER_FILES = {
     'wid-type-file': join(DATA_DIR, 'Wiki/wid-types-figer.txt'),  # yes
     'fetel-test-mentions': join(DATA_DIR, 'Wiki/figer-fetel-test-mentions.json'),  # yes
     'fetel-test-sents': join(DATA_DIR, 'Wiki/figer-fetel-test-sents.json'),  # yes
-    'noel-typing-results': join(DATA_DIR, 'Wiki/noel-fet-results-aaa-figer.txt')  # yes
+    'noel-typing-results' : join (DATA_DIR, 'Wiki/noel-fet-results-aaa-figer.txt'),  # yes,
+    'type-emb' : join (DATA_DIR, 'result/type_embedding_figer')
 }
 
 BBN_FILES = {
@@ -52,5 +53,6 @@ BBN_FILES = {
     'wid-type-file': join(DATA_DIR, 'BBN/wid-types-bbn.txt'),
     'fetel-test-mentions': join(DATA_DIR, 'BBN/bbn-fetel-test-mentions.json'),
     'fetel-test-sents': join(DATA_DIR, 'BBN/bbn-fetel-test-sents.json'),
-    'noel-typing-results': join(DATA_DIR, 'BBN/noel-fet-results-aaa-bbn.txt')
+    'noel-typing-results' : join (DATA_DIR, 'BBN/noel-fet-results-aaa-bbn.txt'),
+    'type-emb' : join (DATA_DIR, 'result/type_embedding_bnn')
 }

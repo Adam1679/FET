@@ -1,13 +1,13 @@
 import logging
+import time
 from typing import List
 
 import numpy as np
-import time
 import torch
 
 from modelexp import exputils
 from modelexp.exputils import ModelSample, anchor_samples_to_model_samples, model_samples_from_json
-from models.feteldeep import FETELStack
+from models.feteldeep import NoName
 from models.fetentvecutils import ELDirectEntityVec, MentionFeat
 from utils import datautils, utils
 
@@ -208,11 +208,70 @@ def _get_feature_from_batch_samples(batch_samples) :
         feats.append (feat)
     return feats
 
+
+def get_type_vec(gres: exputils.GlobalRes,
+                 train_samples_pkl,
+                 embedding_path,
+                 graph_save_path=None,
+                 graph_load_path=None,
+                 model_save_path=None,
+                 model_load_path=None) :
+    import networkx as nx
+    from itertools import combinations
+    import matplotlib.pyplot as plt
+    from node2vec import Node2Vec
+    if graph_load_path is not None :
+        G = nx.read_gpickle (graph_load_path)
+    else :
+        G = nx.Graph ()
+        G.add_nodes_from (gres.type_vocab)
+        train_samples = datautils.load_pickle_data (train_samples_pkl)
+        batch_size = 256
+        n_batches = (len (train_samples) + batch_size - 1) // batch_size
+        step = 0
+        while step < n_batches :
+            batch_idx = step % n_batches
+            batch_beg, batch_end = batch_idx * batch_size, min ((batch_idx + 1) * batch_size, len (train_samples))
+
+            batch_samples = anchor_samples_to_model_samples (
+                train_samples[batch_beg :batch_end], gres.mention_token_id, gres.parent_type_ids_dict)
+            for i in range (len (batch_samples)) :
+                labels = batch_samples[i].labels
+                for a, b in combinations (labels, 2) :
+                    if not G.has_edge (gres.type_vocab[a], gres.type_vocab[b]) :
+                        G.add_edge (gres.type_vocab[a], gres.type_vocab[b])
+            step += 1
+        f, ax = plt.subplots (1, 1, figsize=(100, 100))
+        nx.draw_networkx (G, ax=ax, with_labels=True, font_weight='bold', nodelist=gres.type_vocab[:10])
+        if graph_save_path is not None :
+            nx.write_gpickle (G, graph_save_path)
+
+    node2vec = Node2Vec (G, dimensions=64, walk_length=10, num_walks=200, workers=8)
+    model = node2vec.fit (window=5, min_count=1, negative=5,
+                          batch_words=8, iter=50)
+    if model_load_path :
+        model.load (model_load_path)
+    if model_save_path :
+        model.save (model_save_path)
+    model.wv.save_word2vec_format (embedding_path)
+    model.wv.most_similar ('/education')
+    a = "/organization/company"
+    print ("mode similar for {} is {}".format (a, model.wv.most_similar (a, topn=10)))
+    a = "/written_work"
+    print ("mode similar for {} is {}".format (a, model.wv.most_similar (a, topn=10)))
+    a = "/computer"
+    print ("mode similar for {} is {}".format (a, model.wv.most_similar (a, topn=10)))
+    a = "/person/author"
+    print ("mode similar for {} is {}".format (a, model.wv.most_similar (a, topn=10)))
+    a = "/god"
+    print ("mode similar for {} is {}".format (a, model.wv.most_similar (a, topn=10)))
+    plt.savefig ("./result/graph_fig.png")
+
 def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
                 use_mlp=False, pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
-                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None, feat_dim=16) :
+                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None, type_emb_path=None) :
     logging.info('result_file={}'.format(results_file))
     logging.info(
         'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={}'.format(
@@ -222,18 +281,17 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
     if stack_lstm:
         print ("Use [{}] GPUs".format (torch.cuda.device_count ()))
-        # model = NoName(
-        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-        #     feat_set=MentionFeat.get_feat_set (),
-        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm, copy=args.copy, feat_emb_dim=feat_dim)
-        model = FETELStack (
+        model = NoName (
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-            type_embed_dim=type_embed_dim,
-            dropout=dropout,
-            use_mlp=use_mlp,
-            mlp_hidden_dim=pred_mlp_hdim,
-            concat_lstm=concat_lstm)
+            type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
+            concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
+        # model = FETELStack (
+        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
+        #     type_embed_dim=type_embed_dim,
+        #     dropout=dropout,
+        #     use_mlp=use_mlp,
+        #     mlp_hidden_dim=pred_mlp_hdim,
+        #     concat_lstm=concat_lstm)
     else:
         model = None
     if device.type == 'cuda':
@@ -244,7 +302,6 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
     # 每个sample都是一个长度为7的tuple：
     train_samples = datautils.load_pickle_data(train_samples_pkl)
-    train_size = len(train_samples)
     dev_samples = datautils.load_pickle_data(dev_samples_pkl)
     # batch_samples：针对每一个mention，context的token sequence id，包括parent的full types
     dev_samples = anchor_samples_to_model_samples(dev_samples, gres.mention_token_id, gres.parent_type_ids_dict)  # type: List[LabeledModelSample]
