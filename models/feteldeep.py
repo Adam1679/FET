@@ -326,7 +326,7 @@ class NoName(BaseResModel):
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
-        hidden_size = 256
+        hidden_size = 512
         layers = []
         if not use_mlp :
             layers.append (nn.Dropout (dropout))
@@ -350,7 +350,7 @@ class NoName(BaseResModel):
         # else :
         #     self.copy_mode = CopyMode (linear_map_input_dim, type_embed_dim, dp=dropout)
         if self.copy :
-            self.alpha = nn.Sequential (nn.Linear (hidden_size + 1 + self.n_types, 1), nn.Tanh ())
+            self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
         self.generate_mode = nn.Linear (hidden_size, self.type_embed_dim)
         self.copy_mode = nn.Linear (self.type_embed_dim, hidden_size)
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
@@ -407,7 +407,7 @@ class NoName(BaseResModel):
         if self.copy :
             c = self.copy_mode (self.pre_train_type_embedding.transpose (0, 1)).transpose (0, 1)  # (D, O)
             c = torch.matmul (state.unsqueeze (dim=1), c.unsqueeze (dim=0)).squeeze ()  # (B, O)
-            r = self.alpha (torch.cat ([state, el_probs.unsqueeze (1), entity_vecs], dim=1))  # (B, 1)
+            r = self.alpha (el_probs.unsqueeze (1))  # (B, 1)
             c = F.relu (c * r * entity_vecs)
             logits = c + g
         else :
