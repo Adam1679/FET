@@ -320,7 +320,8 @@ class NoName(BaseResModel):
             self.pre_train_type_embedding = self.pre_train_type_embedding.to (device)
         else :
             self.pre_train_type_embedding = self.type_embeddings
-        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
+        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
+        # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         hidden_size = 512
