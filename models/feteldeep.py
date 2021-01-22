@@ -345,7 +345,15 @@ class NoName(BaseResModel):
         if self.copy :
             self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
-        self.copy_mode = nn.Linear (self.type_embed_dim, hidden_size)
+        self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
+                                        nn.ReLU (),
+                                        nn.BatchNorm1d (hidden_size),
+                                        nn.Dropout (dropout),
+                                        nn.Linear (hidden_size, hidden_size),
+                                        nn.ReLU (),
+                                        nn.BatchNorm1d (mlp_hidden_dim),
+                                        nn.Dropout (dropout),
+                                        )
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
 
     def _load_type_emb(self, path, type_id_dict) :
@@ -392,18 +400,12 @@ class NoName(BaseResModel):
         # name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output, entity_vecs), dim=1))
-        cat_output = torch.cat ((cat_output, el_probs.unsqueeze (1)), dim=1)
+        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
-        # g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
-        #                   self.pre_train_type_embedding.view (-1, self.type_embed_dim,
-        #                                                       self.n_types)).squeeze ()  # (B, O)
         if self.copy :
-            c = self.copy_mode (self.pre_train_type_embedding.transpose (0, 1)).transpose (0, 1)  # (D, O)
-            c = torch.matmul (state.unsqueeze (dim=1), c.unsqueeze (dim=0)).squeeze ()  # (B, O)
-            r = self.alpha (el_probs.unsqueeze (1))  # (B, 1)
-            c = F.relu (c * r * entity_vecs)
+            c = self.copy_mode (torch.cat (entity_vecs, el_probs.unsqueeze (1)))  # (B, D)
+            c = F.relu (c)
             logits = c + g
         else :
             logits = g
