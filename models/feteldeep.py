@@ -405,7 +405,7 @@ class NoName(BaseResModel):
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
         if self.copy :
-            c = self.copy_mode (torch.cat (entity_vecs, el_probs.unsqueeze (1)))  # (B, D)
+            c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1))))  # (B, D)
             c = F.relu (c)
             logits = c + g
         else :
