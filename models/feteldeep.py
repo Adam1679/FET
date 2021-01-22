@@ -246,7 +246,6 @@ class CopyMode(nn.Module):
         logits = F.relu (logits)
         return logits * entity_vecs
 
-
 class GenerationMode(nn.Module):
     def __init__(self, input_size, type_embed_dim, use_mlp=False, mlp_hidden_dim=None, dp=0.5):
         super().__init__()
@@ -277,7 +276,6 @@ class GenerationMode(nn.Module):
         logits = logits.view (-1, n_types)
         return logits
 
-
 class AttenMentionEncoder (nn.Module) :
     def __init__(self, emb_size) :
         super ().__init__ ()
@@ -298,7 +296,6 @@ class AttenMentionEncoder (nn.Module) :
         att = att.softmax (dim=1)
 
         return (token_vecs * att).sum (dim=1)
-
 
 class NoName(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
@@ -345,10 +342,6 @@ class NoName(BaseResModel):
             layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
 
         self.encoder = nn.Sequential (*layers)
-        # if att_copy :
-        #     self.copy_mode = AttCopyMode (linear_map_input_dim, type_embed_dim, n_type=self.n_types, dp=dropout)
-        # else :
-        #     self.copy_mode = CopyMode (linear_map_input_dim, type_embed_dim, dp=dropout)
         if self.copy :
             self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
         self.generate_mode = nn.Linear (hidden_size, self.type_embed_dim)
@@ -394,12 +387,13 @@ class NoName(BaseResModel):
 
         # step 2: mention str vector
         # (256, 300)
-        # name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
-        name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
+        name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
+                                                     mstr_token_seqs)  # (B, D) or (B, 2*D)
+        # name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer (
-            torch.cat ((context_lstm_output, name_output, entity_vecs, el_probs.unsqueeze (1)), dim=1))
+        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output, entity_vecs), dim=1))
+        cat_output = torch.cat ((cat_output, el_probs.unsqueeze (1)), dim=1)
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
         g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
