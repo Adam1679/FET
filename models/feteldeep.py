@@ -401,9 +401,9 @@ class NoName(BaseResModel):
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
         g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
-                          self.pre_train_type_emb.view (-1, self.type_embed_dim, self.n_types))  # (B, O)
+                          self.pre_train_type_embedding.view (-1, self.type_embed_dim, self.n_types))  # (B, O)
         if self.copy :
-            c = self.copy_mode (self.pre_train_type_emb.transpose (0, 1)).transpose (0, 1)  # (D, O)
+            c = self.copy_mode (self.pre_train_type_embedding.transpose (0, 1)).transpose (0, 1)  # (D, O)
             c = torch.matmul (state.unsqueeze (dim=1), c.unsqueeze (dim=0))  # (B, O)
             r = self.alpha (torch.cat ([state, el_probs.unsqueeze (1), entity_vecs], dim=1))
             c = F.relu (c * r * entity_vecs)
