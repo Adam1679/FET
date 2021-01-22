@@ -368,9 +368,9 @@ class NoName(BaseResModel):
                 typename = segs[0]
                 vect = np.array (segs[1 :]).astype (np.float)
                 type2vec[typename] = vect
-        arr = np.zeros ((n_type, dim))
+        arr = np.zeros ((dim, n_type))
         for name, vec in type2vec.items () :
-            arr[type_id_dict[name], :] = vec
+            arr[:, type_id_dict[name]] = vec
         return arr
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
