@@ -344,7 +344,7 @@ class NoName(BaseResModel):
         self.encoder = nn.Sequential (*layers)
         if self.copy :
             self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
-        self.generate_mode = nn.Linear (hidden_size, self.type_embed_dim)
+        self.generate_mode = nn.Linear (hidden_size, self.n_types)
         self.copy_mode = nn.Linear (self.type_embed_dim, hidden_size)
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
 
@@ -396,9 +396,9 @@ class NoName(BaseResModel):
         cat_output = torch.cat ((cat_output, el_probs.unsqueeze (1)), dim=1)
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
-        g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
-                          self.pre_train_type_embedding.view (-1, self.type_embed_dim,
-                                                              self.n_types)).squeeze ()  # (B, O)
+        # g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
+        #                   self.pre_train_type_embedding.view (-1, self.type_embed_dim,
+        #                                                       self.n_types)).squeeze ()  # (B, O)
         if self.copy :
             c = self.copy_mode (self.pre_train_type_embedding.transpose (0, 1)).transpose (0, 1)  # (D, O)
             c = torch.matmul (state.unsqueeze (dim=1), c.unsqueeze (dim=0)).squeeze ()  # (B, O)
