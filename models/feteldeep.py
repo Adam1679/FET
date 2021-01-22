@@ -318,7 +318,7 @@ class NoName(BaseResModel):
         if type_emb_path is not None :
             print ("==> load pretrain type embedding")
             self.pre_train_type_embedding = torch.autograd.Variable (
-                torch.from_numpy (self._load_type_emb (type_emb_path, self.type_id_dict)), requires_grad=False)
+                torch.from_numpy (self._load_type_emb (type_emb_path, self.type_id_dict)), requires_grad=True)
             self.pre_train_type_embedding = self.pre_train_type_embedding.float ()
             self.pre_train_type_embedding = self.pre_train_type_embedding.to (device)
         else :
