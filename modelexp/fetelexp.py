@@ -246,7 +246,7 @@ def get_type_vec(gres: exputils.GlobalRes,
         if graph_save_path is not None :
             nx.write_gpickle (G, graph_save_path)
 
-    node2vec = Node2Vec (G, dimensions=64, walk_length=10, num_walks=200, workers=8)
+    node2vec = Node2Vec (G, dimensions=500, walk_length=10, num_walks=200, workers=8)
     model = node2vec.fit (window=5, min_count=1, negative=5,
                           batch_words=8, iter=50)
     if model_load_path :

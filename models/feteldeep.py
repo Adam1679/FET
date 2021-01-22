@@ -323,7 +323,7 @@ class NoName(BaseResModel):
             self.pre_train_type_embedding = self.pre_train_type_embedding.to (device)
         else :
             self.pre_train_type_embedding = self.type_embeddings
-        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
+        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         hidden_size = 512
@@ -398,7 +398,8 @@ class NoName(BaseResModel):
         name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
+        cat_output = self.dropout_layer (
+            torch.cat ((context_lstm_output, name_output, entity_vecs, el_probs.unsqueeze (1)), dim=1))
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
         g = torch.matmul (g.view (-1, 1, self.type_embed_dim),
