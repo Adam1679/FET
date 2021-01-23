@@ -346,7 +346,7 @@ class NoName(BaseResModel):
         if self.copy :
             self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
-        self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1 + hidden_size, hidden_size),
+        self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
                                         nn.ReLU (),
                                         nn.BatchNorm1d (hidden_size),
                                         nn.Dropout (dropout),
@@ -354,6 +354,7 @@ class NoName(BaseResModel):
                                         nn.ReLU (),
                                         nn.BatchNorm1d (hidden_size),
                                         nn.Dropout (dropout),
+                                        nn.Linear (hidden_size, self.n_types),
                                         )
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
 
@@ -405,7 +406,7 @@ class NoName(BaseResModel):
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
         if self.copy :
-            c = self.copy_mode (torch.cat ((state, entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
+            c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
             c = F.relu (c)
             logits = c + g
         else :
