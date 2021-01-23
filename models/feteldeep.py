@@ -523,7 +523,7 @@ class NoName2 (BaseResModel) :
         g = self.generate_mode (state)  # (B, type_dim)
         if self.copy :
             c = F.tanh (self.fc (state)) + entity_vecs
-            c = F.relu (self.copy_mode (torch.cat ((c, el_probs.unsqueeze (1)), dim=1)))  # (B, D)
+            # c = F.relu (self.copy_mode (torch.cat ((c, el_probs.unsqueeze (1)), dim=1)))  # (B, D)
             logits = c + g
         else :
             logits = g
