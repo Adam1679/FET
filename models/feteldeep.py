@@ -463,8 +463,7 @@ class NoName2 (BaseResModel) :
             layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
 
         self.encoder = nn.Sequential (*layers)
-        if self.copy :
-            self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
+        self.fc = nn.Linear (hidden_size, self.n_types)
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
         self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
                                         nn.ReLU (),
@@ -527,8 +526,8 @@ class NoName2 (BaseResModel) :
         state = self.encoder (cat_output)  # (B, D)
         g = self.generate_mode (state)  # (B, type_dim)
         if self.copy :
-            c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
-            c = F.relu (F.tanh (c) + entity_vecs)
+            c = F.tanh (self.fc (entity_vecs)) + entity_vecs
+            c = self.copy_mode (torch.cat ((c, el_probs.unsqueeze (1)), dim=1))  # (B, D)
             logits = c + g
         else :
             logits = g
