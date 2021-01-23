@@ -7,7 +7,7 @@ import torch
 
 from modelexp import exputils
 from modelexp.exputils import ModelSample, anchor_samples_to_model_samples, model_samples_from_json
-from models.feteldeep import NoName2
+from models.feteldeep import NoName
 from models.fetentvecutils import ELDirectEntityVec, MentionFeat
 from utils import datautils, utils
 
@@ -281,14 +281,14 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
     if stack_lstm:
         print ("Use [{}] GPUs".format (torch.cuda.device_count ()))
-        # model = NoName (
-        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
-        model = NoName2 (
+        model = NoName (
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
             concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
+        # model = NoName2 (
+        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
+        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
+        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
         # model = FETELStack (
         #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
         #     type_embed_dim=type_embed_dim,

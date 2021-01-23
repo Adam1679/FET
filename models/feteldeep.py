@@ -398,9 +398,9 @@ class NoName(BaseResModel):
 
         # step 2: mention str vector
         # (256, 300)
-        name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
-                                                     mstr_token_seqs)  # (B, D) or (B, 2*D)
-        # name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
+        # name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
+        #                                              mstr_token_seqs)  # (B, D) or (B, 2*D)
+        name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
