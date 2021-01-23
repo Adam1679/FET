@@ -352,7 +352,7 @@ class NoName(BaseResModel):
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, hidden_size),
                                         nn.ReLU (),
-                                        nn.BatchNorm1d (mlp_hidden_dim),
+                                        nn.BatchNorm1d (hidden_size),
                                         nn.Dropout (dropout),
                                         )
         self.word_emb = AttenMentionEncoder (self.word_vec_dim)
