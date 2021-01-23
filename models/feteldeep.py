@@ -427,8 +427,8 @@ class NoName2 (BaseResModel) :
                  feat_emb_dim=16,
                  att_copy=False,
                  type_emb_path=None) :
-        super (NoName, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
-                                       context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
+        super (NoName2, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
+                                        context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
         self.copy = copy
         if type_emb_path is not None :
