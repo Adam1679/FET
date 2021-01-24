@@ -498,7 +498,7 @@ def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[Mode
             logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs,
                            entity_vecs_batch, el_probs_batch, feats)
             if isinstance (logits, tuple) :
-                logits = logits[0] + logits[1]
+                logits = logits[0] + F.relu (logits[1])
 
         if single_type_path:
             preds = model.inference(logits)
