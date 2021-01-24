@@ -417,7 +417,7 @@ class NoName(BaseResModel):
 
 
 class NoName3 (BaseResModel) :
-    """could get 76% at least"""
+    """could get 76.4% at least"""
 
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
                  type_embed_dim,
@@ -519,9 +519,9 @@ class NoName3 (BaseResModel) :
 
         # step 2: mention str vector
         # (256, 300)
-        name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
-                                                     mstr_token_seqs)  # (B, D) or (B, 2*D)
-        # name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
+        # name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
+        #                                              mstr_token_seqs)  # (B, D) or (B, 2*D)
+        name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
@@ -529,7 +529,6 @@ class NoName3 (BaseResModel) :
         g = self.generate_mode (state)  # (B, type_dim)
         if self.copy :
             c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
-            # c = F.relu (c)
             return g.view (-1, self.n_types), c.view (-1, self.n_types)
         else :
             return g.view (-1, self.n_types)
