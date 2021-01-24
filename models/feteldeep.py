@@ -529,7 +529,7 @@ class NoName3 (BaseResModel) :
         g = self.generate_mode (state)  # (B, type_dim)
         if self.copy :
             c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
-            c = F.relu (c)
+            # c = F.relu (c)
             return g.view (-1, self.n_types), c.view (-1, self.n_types)
         else :
             return g.view (-1, self.n_types)
