@@ -2,12 +2,9 @@ import logging
 import time
 from typing import List
 
-import numpy as np
-import torch
-
 from modelexp import exputils
 from modelexp.exputils import ModelSample, anchor_samples_to_model_samples, model_samples_from_json
-from models.feteldeep import NoName
+from models.feteldeep import *
 from models.fetentvecutils import ELDirectEntityVec, MentionFeat
 from utils import datautils, utils
 
@@ -281,7 +278,11 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
     if stack_lstm:
         print ("Use [{}] GPUs".format (torch.cuda.device_count ()))
-        model = NoName (
+        # model = NoName (
+        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
+        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
+        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
+        model = NoName3 (
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
             concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
@@ -389,7 +390,11 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
             else :
                 entity_vecs = None
             logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, feats)
-            loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
+            if isinstance (logits, tuple) :
+                loss = model.get_loss (y_true, logits[0], person_loss_vec=person_loss_vec) + \
+                       model.get_loss (y_true, logits[1], person_loss_vec=person_loss_vec)
+            else :
+                loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
             scheduler.step ()
             optimizer.zero_grad ()
             loss.backward ()
@@ -466,7 +471,6 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
             'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format (
                 step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
 
-
 def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
                feats=None,
                batch_size=32,
@@ -493,6 +497,8 @@ def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[Mode
         with torch.no_grad():
             logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs,
                            entity_vecs_batch, el_probs_batch, feats)
+            if isinstance (logits, tuple) :
+                logits = logits[0] + logits[1]
 
         if single_type_path:
             preds = model.inference(logits)
