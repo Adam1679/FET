@@ -32,8 +32,8 @@ def train_model(args):
     concat_lstm = False
     per_pen = 2.0
 
-    dataset = 'figer'
-    # dataset = 'bbn'
+    # dataset = 'figer'
+    dataset = 'bbn'
     datafiles = config.FIGER_FILES if dataset == 'figer' else config.BBN_FILES
     single_type_path = True if dataset == 'bbn' else False
     test_mentions_file = datafiles['fetel-test-mentions']
