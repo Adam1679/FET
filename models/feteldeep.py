@@ -15,7 +15,7 @@ def inference_labels_full(l1_type_indices, child_type_vecs, scores, extra_label_
     return label_preds
 
 
-def inference_labels(l1_type_indices, child_type_vecs, scores):
+def inference_labels(l1_type_indices, child_type_vecs, scores, multilabel) :
     l1_type_scores = scores[:, l1_type_indices]
     tmp_indices = np.argmax(l1_type_scores, axis=1)
     max_l1_indices = l1_type_indices[tmp_indices]
@@ -97,10 +97,10 @@ class BaseResModel(nn.Module):
         loss = torch.mean (torch.add (tmp1, tmp2))
         return loss
 
-    def inference(self, scores, is_torch_tensor=True):
+    def inference(self, scores, is_torch_tensor=True, multilabel=True) :
         if is_torch_tensor:
             scores = scores.data.cpu().numpy()
-        return inference_labels(self.l1_type_indices, self.child_type_vecs, scores)
+        return inference_labels (self.l1_type_indices, self.child_type_vecs, scores, multilabel)
 
     def inference_full(self, logits, extra_label_thres=0.5, is_torch_tensor=True):
         if is_torch_tensor:

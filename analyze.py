@@ -13,6 +13,7 @@ from utils.loggingutils import init_universal_logging
 
 
 def train_model():
+    dataset = 'bbn'
     batch_size = 256
     dropout = 0.5
     context_lstm_hidden_dim = 250
@@ -20,15 +21,15 @@ def train_model():
     pred_mlp_hdim = 500
     n_iter = 15
     lr = 0.001
-    nil_rate = 0.5
+    nil_rate = 0.3 if dataset == 'bbn' else 0.3
     use_mlp = True
     rand_per = True
     stack_lstm = True
     concat_lstm = False
     per_pen = 2.0
 
-    dataset = 'figer'
-    # dataset = 'bbn'
+    # dataset = 'figer'
+
     datafiles = config.FIGER_FILES if dataset == 'figer' else config.BBN_FILES
     single_type_path = True if dataset == 'bbn' else False
     test_mentions_file = datafiles['fetel-test-mentions']
@@ -50,6 +51,7 @@ def train_model():
 
     # 存储了所有的token的embedding， type的名字，id， 还有一些parent type的名字，id
     gres = exputils.GlobalRes(datafiles['type-vocab'], word_vecs_file)
+    gres.dataset = gres
     # 存储了token对应的types的id，以及entity linking的对象
     el_entityvec = fetentvecutils.ELDirectEntityVec(gres.n_types, gres.type_id_dict, el_system, datafiles['wid-type-file'])
 
