@@ -433,14 +433,6 @@ class NoName3 (BaseResModel) :
                                         context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
         self.copy = copy
-        if type_emb_path is not None :
-            print ("==> load pretrain type embedding")
-            self.pre_train_type_embedding = torch.autograd.Variable (
-                torch.from_numpy (self._load_type_emb (type_emb_path, self.type_id_dict)), requires_grad=True)
-            self.pre_train_type_embedding = self.pre_train_type_embedding.float ()
-            self.pre_train_type_embedding = self.pre_train_type_embedding.to (device)
-        else :
-            self.pre_train_type_embedding = self.type_embeddings
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
         # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
         if concat_lstm :
