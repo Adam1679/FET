@@ -278,14 +278,14 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
     if stack_lstm:
         print ("Use [{}] GPUs".format (torch.cuda.device_count ()))
-        # model = NoName (
-        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
-        model = NoName3 (
+        model = NoName (
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
             concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
+        # model = NoName3 (
+        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
+        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
+        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
         # model = NoName2 (
         #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
         #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
@@ -345,108 +345,111 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
 
     dev_results_file = None
     n_batches = (len(train_samples) + batch_size - 1) // batch_size
-    # if args.copy :
-    #     optimizer = torch.optim.SGD (filter (lambda p : p.requires_grad, model.parameters ()), lr=learning_rate,
-    #                                  momentum=0.9)
-    # else :
     optimizer = torch.optim.AdamW (filter (lambda p : p.requires_grad, model.parameters ()), lr=learning_rate)
     nelement = sum ([p.nelement () for p in model.parameters () if p.requires_grad])
     logging.info ("number of training params is {}".format (nelement))
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=n_batches, gamma=lr_gamma)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=n_batches, gamma=lr_gamma)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts (optimizer, T_0=n_batches // 5, T_mult=2,
+                                                                      eta_min=1e-5)
     losses = list()
     best_dev_acc = -1
     logging.info('{} steps, {} steps per iter, lr_decay={}, start training ...'.format(
         n_iter * n_batches, n_batches, lr_gamma))
-    step = 0
+
     n_steps = n_iter * n_batches
     if not args.eval :
-        while step < n_steps :
-            batch_idx = step % n_batches
-            batch_beg, batch_end = batch_idx * batch_size, min ((batch_idx + 1) * batch_size, len (train_samples))
+        step = 0
+        for e in range (n_iter) :
+            np.random.shuffle (train_samples)
+            for batch_idx in range (n_batches) :
+                batch_beg, batch_end = batch_idx * batch_size, min ((batch_idx + 1) * batch_size, len (train_samples))
+                batch_samples = anchor_samples_to_model_samples (
+                    train_samples[batch_beg :batch_end], gres.mention_token_id, gres.parent_type_ids_dict)
+                feats = _get_feature_from_batch_samples (batch_samples)
+                # entity_vecs should be the linked types
+                if rand_per :
+                    entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None,
+                                                                                    True,
+                                                                                    person_type_id, l2_person_type_ids,
+                                                                                    gres.type_vocab)
+                else :
+                    entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None,
+                                                                                    True)
 
-            batch_samples = anchor_samples_to_model_samples (
-                train_samples[batch_beg :batch_end], gres.mention_token_id, gres.parent_type_ids_dict)
-            feats = _get_feature_from_batch_samples (batch_samples)
-            # entity_vecs should be the linked types
-            if rand_per :
-                entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None, True,
-                                                                                person_type_id, l2_person_type_ids,
-                                                                                gres.type_vocab)
-            else :
-                entity_vecs, el_sgns, el_probs = __get_entity_vecs_for_samples (el_entityvec, batch_samples, None, True)
+                use_entity_vecs = True
+                model.train ()
 
-            use_entity_vecs = True
-            model.train ()
+                (context_token_seqs, mention_token_idxs, mstrs, mstr_token_seqs, y_true
+                 ) = exputils.get_mstr_cxt_label_batch_input (device, gres.n_types, batch_samples)
 
-            (context_token_seqs, mention_token_idxs, mstrs, mstr_token_seqs, y_true
-             ) = exputils.get_mstr_cxt_label_batch_input (device, gres.n_types, batch_samples)
+                if use_entity_vecs :
+                    for i in range (entity_vecs.shape[0]) :
+                        if np.random.uniform () < nil_rate :
+                            entity_vecs[i] = np.zeros (entity_vecs.shape[1], np.float32)
+                    el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
+                    entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
+                else :
+                    entity_vecs = None
+                logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, feats)
+                if isinstance (logits, tuple) :
+                    loss = model.get_loss (y_true, logits[0], person_loss_vec=person_loss_vec) + \
+                           model.get_loss (y_true, logits[1], person_loss_vec=person_loss_vec)
+                else :
+                    loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
 
-            if use_entity_vecs :
-                for i in range (entity_vecs.shape[0]) :
-                    if np.random.uniform () < nil_rate :
-                        entity_vecs[i] = np.zeros (entity_vecs.shape[1], np.float32)
-                el_probs = torch.tensor (el_probs, dtype=torch.float32, device=device)
-                entity_vecs = torch.tensor (entity_vecs, dtype=torch.float32, device=device)
-            else :
-                entity_vecs = None
-            logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, feats)
-            if isinstance (logits, tuple) :
-                loss = model.get_loss (y_true, logits[0], person_loss_vec=person_loss_vec) + \
-                       model.get_loss (y_true, logits[1], person_loss_vec=person_loss_vec)
-            else :
-                loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
-            scheduler.step ()
-            optimizer.zero_grad ()
-            loss.backward ()
-            torch.nn.utils.clip_grad_norm_ (model.parameters (), 10.0, float ('inf'))
-            optimizer.step ()
-            losses.append (loss.data.cpu ().numpy ())
+                optimizer.zero_grad ()
+                loss.backward ()
+                torch.nn.utils.clip_grad_norm_ (model.parameters (), 10.0, float ('inf'))
+                optimizer.step ()
+                scheduler.step ()
+                losses.append (loss.data.cpu ().numpy ())
 
-            step += 1
-            if step % 1000 == 0 :
-                acc_tr, pacc_tr = -1, -1
-                acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
-                                                               device, gres, model, dev_samples, dev_entity_vecs,
-                                                               dev_el_probs, batch_size=eval_batch_size,
-                                                               use_entity_vecs=use_entity_vecs,
-                                                               single_type_path=single_type_path,
-                                                               true_labels_dict=dev_true_labels_dict, test=False,
-                                                               feats=dev_feats)
+                step += 1
+                if (batch_idx + 1) % 1000 == 0 :
+                    acc_tr, pacc_tr = -1, -1
+                    acc_v, pacc_v, _, _, dev_results = eval_fetel (args,
+                                                                   device, gres, model, dev_samples, dev_entity_vecs,
+                                                                   dev_el_probs, batch_size=eval_batch_size,
+                                                                   use_entity_vecs=use_entity_vecs,
+                                                                   single_type_path=single_type_path,
+                                                                   true_labels_dict=dev_true_labels_dict, test=False,
+                                                                   feats=dev_feats)
 
-                acc_t, _, maf1, mif1, test_results = eval_fetel (args,
-                                                                 device, gres, model, test_samples, test_entity_vecs,
-                                                                 test_el_probs, batch_size=eval_batch_size,
-                                                                 use_entity_vecs=use_entity_vecs,
-                                                                 single_type_path=single_type_path,
-                                                                 true_labels_dict=test_true_labels_dict, test=True,
-                                                                 feats=te_feats)
+                    acc_t, _, maf1, mif1, test_results = eval_fetel (args,
+                                                                     device, gres, model, test_samples,
+                                                                     test_entity_vecs,
+                                                                     test_el_probs, batch_size=eval_batch_size,
+                                                                     use_entity_vecs=use_entity_vecs,
+                                                                     single_type_path=single_type_path,
+                                                                     true_labels_dict=test_true_labels_dict, test=True,
+                                                                     feats=te_feats)
 
-                best_tag = '*' if acc_v > best_dev_acc else ''
-                logging.info (
-                    'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format (
-                        step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
-                writer.add_scalar ("acc_tr", acc_tr)
-                writer.add_scalar ("pacc_tr", pacc_tr)
-                writer.add_scalar ("accv", acc_v)
-                writer.add_scalar ("paccv", pacc_v)
-                writer.add_scalar ("acct", acc_t)
-                writer.add_scalar ("maf1", maf1)
-                writer.add_scalar ("mif1", mif1)
+                    best_tag = '*' if acc_v > best_dev_acc else ''
+                    logging.info (
+                        'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format (
+                            step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
+                    writer.add_scalar ("acc_tr", acc_tr)
+                    writer.add_scalar ("pacc_tr", pacc_tr)
+                    writer.add_scalar ("accv", acc_v)
+                    writer.add_scalar ("paccv", pacc_v)
+                    writer.add_scalar ("acct", acc_t)
+                    writer.add_scalar ("maf1", maf1)
+                    writer.add_scalar ("mif1", mif1)
 
-                if acc_v > best_dev_acc and save_model_file :
-                    torch.save (model.state_dict (), "{}.{}".format (save_model_file, step))
-                    logging.info ('model saved to {}'.format ("{}.{}".format (save_model_file, step)))
+                    if acc_v > best_dev_acc and save_model_file :
+                        torch.save (model.state_dict (), "{}.{}".format (save_model_file, step))
+                        logging.info ('model saved to {}'.format ("{}.{}".format (save_model_file, step)))
 
-                if dev_results_file is not None and acc_v > best_dev_acc :
-                    datautils.save_json_objs (dev_results, dev_results_file)
-                    logging.info ('dev reuslts saved {}'.format (dev_results_file))
-                if results_file is not None and acc_v > best_dev_acc :
-                    datautils.save_json_objs (test_results, results_file)
-                    logging.info ('test reuslts saved {}'.format (results_file))
+                    if dev_results_file is not None and acc_v > best_dev_acc :
+                        datautils.save_json_objs (dev_results, dev_results_file)
+                        logging.info ('dev reuslts saved {}'.format (dev_results_file))
+                    if results_file is not None and acc_v > best_dev_acc :
+                        datautils.save_json_objs (test_results, results_file)
+                        logging.info ('test reuslts saved {}'.format (results_file))
 
-                if acc_v > best_dev_acc :
-                    best_dev_acc = acc_v
-                losses = list ()
+                    if acc_v > best_dev_acc :
+                        best_dev_acc = acc_v
+                    losses = list ()
     else :
         acc_tr, pacc_tr = -1, -1
         use_entity_vecs = True
@@ -469,7 +472,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         best_tag = '*' if acc_v > best_dev_acc else ''
         logging.info (
             'i={} l={:.4f} acctr = {:.4f}  pacctr = {:.4f} accv={:.4f} paccv={:.4f} acct={:.4f} maf1={:.4f} mif1={:.4f}{}'.format (
-                step, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
+                -1, sum (losses), acc_tr, pacc_tr, acc_v, pacc_v, acc_t, maf1, mif1, best_tag))
 
 def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[ModelSample], entity_vecs, el_probs,
                feats=None,
