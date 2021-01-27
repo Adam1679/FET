@@ -178,40 +178,47 @@ class FETELStack(BaseResModel):
 
 
 class AttCopyMode (nn.Module) :
-    def __init__(self, input_size, out_size, n_type, use_mlp=False, mlp_hidden_dim=None, dp=0.5, n_head=2, kdim=64) :
+    def __init__(self, input_size, emb_dim, n_type, dp=0.5, n_head=2, kdim=128) :
         super ().__init__ ()
         layers = []
-        if not use_mlp :
-            layers.append (nn.Dropout (dp))
-            layers.append (nn.Linear (input_size, out_size, bias=False))
-        else :
-            mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-            layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dp))
-            layers.append (nn.Linear (mlp_hidden_dim, kdim * n_head, bias=False))
+        mlp_hidden_dim = input_size // 2
+        layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
+        layers.append (nn.ReLU ())
+        layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+        layers.append (nn.Dropout (dp))
+        layers.append (nn.Linear (mlp_hidden_dim, kdim * n_head, bias=False))
         self.kdim = kdim
         self.query = nn.Sequential (*layers)
-        self.value = nn.Linear (out_size, out_size * n_head)
-        self.key = nn.Linear (out_size, kdim * n_head)
-        self.out = nn.Sequential (nn.Linear (out_size * n_head, out_size), nn.ReLU ())
+        self.value = nn.Linear (emb_dim, emb_dim * n_head)
+        self.key = nn.Linear (emb_dim, kdim * n_head)
+        self.out = nn.Sequential (nn.Linear (emb_dim * n_head + 1, n_type), nn.ReLU ())
         self.dp = nn.Dropout (dp)
+        self.n_head = n_head
+        self.n_type = n_type
+        self.emb_dim = emb_dim
 
-    def forward(self, x, entity_vecs, type_emb, topk=2) :
+    def forward(self, x, entity_vecs, type_emb, prob) :
         """x: (256, 800)
            entity_vecs: (B, n_type)
            type_emb: (emb_size, n_type)
         """
         bs, n_type = entity_vecs.size ()
-        x = self.query (x)  # # (B, kdim * n_head)
-        key = self.key (type_emb.transpose (0, 1)).transpose (0, 1)  # (kdim * n_head, n_type)
-        value = self.value (type_emb.transpose (0, 1)).transpose (0, 1)  # (out_size * n_head, n_type)
-        type_embed_dim, n_types = type_emb.size ()
-        att = (x / self.kdim ** 2) @ key  # (B, n_type)
-        att.masked_fill (~entity_vecs.bool (), -1e9)
-        att = self.dp (att.softmax (dim=1))
-        emb = att @ value.transpose (0, 1)  # (B, n_type)
+        q = self.query (x).view (bs, self.n_head, self.kdim)  # (B x n_head x kdim)
+        k = self.key (type_emb.transpose (0, 1)).view (self.n_type, self.n_head, self.kdim).transpose (0,
+                                                                                                       1)  # (n_head x n_type x kdim)
+        v = self.value (type_emb.transpose (0, 1)).view (self.n_type, self.n_head, self.emb_dim).transpose (0,
+                                                                                                            1)  # (n_head x n_type x emb_dim)
+        att = torch.matmul (q.unsqueeze (2) / self.kdim ** 2,
+                            k.transpose (1, 2).unsqueeze (0)).squeeze ()  # (B x n_head x n_type)
+        att.masked_fill (~entity_vecs.bool ().unsqueeze (1), -1e9)  # (B x n_head x n_type)
+        att = self.dp (att.softmax (dim=2))
+
+        entity_vecs2 = entity_vecs.sum (dim=1)
+        for i in range (bs) :
+            if entity_vecs2[i] == 0 :
+                att[i] = 0.
+        emb = torch.matmul (att.unsqueeze (2), v.unsqueeze (0)).view (bs, -1)  # (B, n_head x emb_dim)
+        emb = torch.cat ((emb, prob.unsqueeze (1)), dim=1)
         return self.out (emb)
 
 class CopyMode(nn.Module):
@@ -336,8 +343,6 @@ class NoName(BaseResModel):
             layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
 
         self.encoder = nn.Sequential (*layers)
-        if self.copy :
-            self.alpha = nn.Sequential (nn.Linear (1, 1), nn.Sigmoid ())
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
         self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
                                         nn.ReLU (),
@@ -405,6 +410,105 @@ class NoName(BaseResModel):
         else :
             logits = g
         logits = logits.view(-1, self.n_types)
+        return logits
+
+
+class AttNoName (BaseResModel) :
+    """could get 76% at least"""
+
+    def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
+                 type_embed_dim,
+                 dropout=0.5,
+                 use_mlp=False,
+                 mlp_hidden_dim=None,
+                 concat_lstm=False,
+                 copy=True,
+                 feat_emb_dim=16,
+                 att_copy=False,
+                 type_emb_path=None) :
+        super (AttNoName, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
+                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
+        self.use_mlp = use_mlp
+        self.copy = copy
+        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
+        # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
+        if concat_lstm :
+            linear_map_input_dim += 2 * self.context_lstm_hidden_dim
+        hidden_size = 512
+        layers = []
+        mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
+        layers.append (nn.Linear (linear_map_input_dim, mlp_hidden_dim))
+        layers.append (nn.ReLU ())
+        layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+        layers.append (nn.Dropout (dropout))
+        layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
+        layers.append (nn.ReLU ())
+        layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+        layers.append (nn.Dropout (dropout))
+        layers.append (nn.Linear (mlp_hidden_dim, self.type_embed_dim))
+
+        self.encoder = nn.Sequential (*layers)
+        self.att_copy = AttCopyMode (2 * self.context_lstm_hidden_dim, n_head=2, n_type=self.n_types,
+                                     emb_dim=self.type_embed_dim)
+        self.word_emb = AttenMentionEncoder (self.word_vec_dim)
+
+    def _load_type_emb(self, path, type_id_dict) :
+        type2vec = {}
+        with open (path, 'r') as f :
+            line = f.readline ()
+            n_type = int (line.split ()[0])
+            dim = int (line.split ()[1])
+            for line in f :
+                segs = line.strip ().split ()
+                if len (segs) == 2 :
+                    continue
+                typename = segs[0]
+                vect = np.array (segs[1 :]).astype (np.float)
+                type2vec[typename] = vect
+        arr = np.zeros ((dim, n_type))
+        for name, vec in type2vec.items () :
+            arr[:, type_id_dict[name]] = vec
+        return arr
+
+    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
+        """
+
+        :param context_token_seqs: List[List[Int]], len(List) = batch_size  sent_tokens[:pos_beg] + [mention_token_id] + sent_tokens[pos_end:]
+        :param mention_token_idxs: List[Int], len(List) = batch_size： mention在句子里面的starting index
+        :param mstr_token_seqs: List[List[Int]], len(List) = batch_size, List里面的元素个数非常的少
+        :param entity_vecs: (batch_size x 128) linking results, multihot vector
+        :param el_probs: (batch_size,) linking score
+        :return:
+        """
+        batch_size = len (context_token_seqs)
+        context_token_seqs, seq_lens, mention_token_idxs, back_idxs = modelutils.get_len_sorted_context_seqs_input (
+            self.device, context_token_seqs, mention_token_idxs)
+
+        context_lstm_output = self.get_context_lstm_output (context_token_seqs, seq_lens, mention_token_idxs,
+                                                            batch_size)  # (B, D) or (B, 2*D)
+
+        # step 1: context
+        context_lstm_output = context_lstm_output[back_idxs]  # (256, 500)
+
+        # step 2: mention str vector
+        # (256, 300)
+        name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
+                                                     mstr_token_seqs)  # (B, D) or (B, 2*D)
+        # name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
+
+        # step 3: entity_vecs: the entity linking results
+        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
+        state = self.encoder (cat_output)  # (B, D)
+        g = torch.matmul (state.view (-1, 1, self.type_embed_dim),
+                          self.type_embeddings.view (-1, self.type_embed_dim,
+                                                     self.n_types))  # TODO: (B, 1, D) x (B, D, K)
+        if self.copy :
+            c = self.att_copy (context_lstm_output, entity_vecs, self.type_embeddings, el_probs)  # (B, D)
+            c = F.relu (c)
+            logits = c + g
+        else :
+            logits = g
+        logits = logits.view (-1, self.n_types)
         return logits
 
 
