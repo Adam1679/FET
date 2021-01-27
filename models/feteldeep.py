@@ -502,6 +502,7 @@ class AttNoName (BaseResModel) :
         g = torch.matmul (state.view (-1, 1, self.type_embed_dim),
                           self.type_embeddings.view (-1, self.type_embed_dim,
                                                      self.n_types))  # TODO: (B, 1, D) x (B, D, K)
+        g = g.squeeze ()
         if self.copy :
             c = self.att_copy (context_lstm_output, entity_vecs, self.type_embeddings, el_probs)  # (B, D)
             c = F.relu (c)
