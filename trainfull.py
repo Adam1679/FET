@@ -16,7 +16,8 @@ def train_model(args):
     global writer
     batch_size = 256
     dropout = 0.5
-    context_lstm_hidden_dim = 250
+    # context_lstm_hidden_dim = 250
+    context_lstm_hidden_dim = 300
     type_embed_dim = 500
     pred_mlp_hdim = 500
     n_iter = 15
@@ -43,8 +44,6 @@ def train_model(args):
     train_data_pkl = data_prefix + '-train.pkl'
 
     type_emb_path = datafiles['type-emb']
-    # save_model_file = None
-    # results_file = None
     if args.copy :
         save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.copy.pl'.format (
             os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
