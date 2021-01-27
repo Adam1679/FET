@@ -353,7 +353,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     nelement = sum ([p.nelement () for p in model.parameters () if p.requires_grad])
     logging.info ("number of training params is {}".format (nelement))
     # scheduler = torch.optim.lr_scheduler.StepLR (optimizer, step_size=n_batches, gamma=lr_gamma)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR (optimizer, milestones=[5, 10], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR (optimizer, milestones=[5 * n_batches, 10 * n_batches], gamma=0.1)
     losses = list()
     best_dev_acc = -1
     logging.info('{} steps, {} steps per iter, lr_decay={}, start training ...'.format(
