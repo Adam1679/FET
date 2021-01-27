@@ -329,7 +329,6 @@ class NoName(BaseResModel):
         self.use_mlp = use_mlp
         self.copy = copy
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
-        # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         hidden_size = 512
@@ -353,11 +352,6 @@ class NoName(BaseResModel):
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
         self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
                                         nn.ReLU (),
-                                        nn.BatchNorm1d (hidden_size),
-                                        nn.Dropout (dropout),
-                                        nn.Linear (hidden_size, hidden_size),
-                                        nn.ReLU (),
-                                        nn.BatchNorm1d (hidden_size),
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, self.n_types),
                                         )
@@ -384,9 +378,8 @@ class NoName(BaseResModel):
 
         # step 2: mention str vector
         # (256, 300)
-        # name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
-        #                                              mstr_token_seqs)  # (B, D) or (B, 2*D)
-        name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
+        name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
+                                                     mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
