@@ -352,9 +352,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     optimizer = torch.optim.AdamW (filter (lambda p : p.requires_grad, model.parameters ()), lr=learning_rate)
     nelement = sum ([p.nelement () for p in model.parameters () if p.requires_grad])
     logging.info ("number of training params is {}".format (nelement))
-    scheduler = torch.optim.lr_scheduler.StepLR (optimizer, step_size=n_batches, gamma=lr_gamma)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts (optimizer, T_0=n_batches // 5, T_mult=2,
-    #                                                                   eta_min=1e-5)
+    # scheduler = torch.optim.lr_scheduler.StepLR (optimizer, step_size=n_batches, gamma=lr_gamma)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR (optimizer, milestones=[5, 10], gamma=0.1)
     losses = list()
     best_dev_acc = -1
     logging.info('{} steps, {} steps per iter, lr_decay={}, start training ...'.format(
