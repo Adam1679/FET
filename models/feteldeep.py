@@ -69,7 +69,7 @@ class BaseResModel(nn.Module):
         x = self.embedding_layer (word_id_seqs)
         B = x.size (0)
         T = x.size (1)
-        mask = torch.zeros ((B, T)).bool ()
+        mask = torch.zeros ((B, T), device=self.device).bool ()
         for i in range (B) :
             length = lens[i]
             mask[i, length :] = True
