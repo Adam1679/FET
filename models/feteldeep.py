@@ -321,6 +321,7 @@ class NoName(BaseResModel):
         self.use_mlp = use_mlp
         self.copy = copy
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
+        # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
         if concat_lstm:
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         hidden_size = 512
@@ -344,9 +345,12 @@ class NoName(BaseResModel):
         self.encoder = nn.Sequential (*layers)
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
         self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
-                                        nn.Tanh (),
-                                        # nn.BatchNorm1d (hidden_size),
-                                        # nn.BatchNorm1d (hidden_size),
+                                        nn.ReLU (),
+                                        nn.BatchNorm1d (hidden_size),
+                                        nn.Dropout (dropout),
+                                        nn.Linear (hidden_size, hidden_size),
+                                        nn.ReLU (),
+                                        nn.BatchNorm1d (hidden_size),
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, self.n_types),
                                         )
@@ -506,7 +510,6 @@ class AttNoName (BaseResModel) :
             logits = g
         logits = logits.view (-1, self.n_types)
         return logits
-
 
 class NoName3 (BaseResModel) :
     """could get 76.4% at least"""
