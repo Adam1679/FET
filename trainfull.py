@@ -22,7 +22,7 @@ def train_model(args):
     pred_mlp_hdim = 500
     n_iter = 15
     lr = 0.001
-    nil_rate = 0.5
+    nil_rate = 0.3
     use_mlp = True
     rand_per = True
     stack_lstm = True
