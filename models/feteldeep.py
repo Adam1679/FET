@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -31,7 +33,7 @@ def inference_labels(l1_type_indices, child_type_vecs, scores, multilabel) :
 
 class BaseResModel(nn.Module):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding,
-                 context_lstm_hidden_dim, type_embed_dim, dropout=0.5, concat_lstm=False):
+                 context_lstm_hidden_dim, type_embed_dim, dropout=0.5) :
         super(BaseResModel, self).__init__()
         self.device = device
         self.context_lstm_hidden_dim = context_lstm_hidden_dim
@@ -51,15 +53,12 @@ class BaseResModel(nn.Module):
         self.word_vec_dim = embedding_layer.embedding_dim
         self.embedding_layer = embedding_layer
 
-        self.concat_lstm = concat_lstm
         self.context_lstm1 = nn.LSTM(input_size=self.word_vec_dim, hidden_size=self.context_lstm_hidden_dim,
                                      bidirectional=True)
         self.context_hidden1 = None
 
         self.context_lstm2 = nn.LSTM(input_size=self.context_lstm_hidden_dim * 2,
                                      hidden_size=self.context_lstm_hidden_dim, bidirectional=True)
-        t_layer = nn.TransformerEncoderLayer (d_model=self.word_vec_dim, nhead=4, dim_feedforward=2 * self.word_vec_dim)
-        self.t_layer = nn.TransformerEncoder (num_layers=2, encoder_layer=t_layer)
         self.context_hidden2 = None
 
     def init_context_hidden(self, batch_size):
@@ -92,10 +91,7 @@ class BaseResModel(nn.Module):
 
         lstm_output1, _ = torch.nn.utils.rnn.pad_packed_sequence(lstm_output1, batch_first=True) #(B, T, D)
         lstm_output2, _ = torch.nn.utils.rnn.pad_packed_sequence(lstm_output2, batch_first=True)
-        if self.concat_lstm:
-            lstm_output = torch.cat((lstm_output1, lstm_output2), dim=2)
-        else:
-            lstm_output = lstm_output1 + lstm_output2
+        lstm_output = lstm_output1 + lstm_output2
 
         lstm_output_r = lstm_output[list(range(batch_size)), mention_tok_idxs, :] # 找到mention的位置的embedding
         return lstm_output_r
@@ -125,31 +121,28 @@ class BaseResModel(nn.Module):
 
 class FETELStack(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
-                 type_embed_dim, dropout=0.5, use_mlp=False, mlp_hidden_dim=None, concat_lstm=False):
+                 type_embed_dim, dropout=0.5, beta=0.5) :
         super(FETELStack, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
-                                         context_lstm_hidden_dim, type_embed_dim, dropout=dropout,
-                                         concat_lstm=concat_lstm)
-        self.use_mlp = use_mlp
+                                         context_lstm_hidden_dim, type_embed_dim, dropout=dropout)
         # self.dropout_layer = nn.Dropout(dropout)
 
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
-        mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-        self.linear_map1 = nn.Linear (linear_map_input_dim, mlp_hidden_dim)
-        self.lin1_bn = nn.BatchNorm1d (mlp_hidden_dim)
-        self.linear_map2 = nn.Linear (mlp_hidden_dim, mlp_hidden_dim)
-        self.lin2_bn = nn.BatchNorm1d (mlp_hidden_dim)
-        self.linear_map3 = nn.Linear (mlp_hidden_dim, self.n_types)
+        mlp_hidden_dim = linear_map_input_dim // 2
         hidden_size = 250
-        self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
-                                        nn.ReLU (),
-                                        nn.BatchNorm1d (hidden_size),
-                                        nn.Dropout (dropout),
-                                        nn.Linear (hidden_size, hidden_size),
-                                        nn.ReLU (),
-                                        nn.BatchNorm1d (hidden_size),
-                                        nn.Dropout (dropout),
-                                        nn.Linear (hidden_size, self.n_types),
-                                        )
+        self.g_mode = nn.Sequential (nn.Linear (linear_map_input_dim, mlp_hidden_dim),
+                                     nn.ReLU (),
+                                     nn.BatchNorm1d (mlp_hidden_dim),
+                                     nn.Dropout (dropout),
+                                     nn.Linear (hidden_size, hidden_size),
+                                     nn.ReLU (),
+                                     nn.BatchNorm1d (hidden_size),
+                                     nn.Dropout (dropout),
+                                     nn.Linear (hidden_size, self.n_types),
+                                     )
+
+        self.copy_mode = copy.deepcopy (self.g_mode)
+        self.beta = beta
+        self.global_score = nn.Parameter (torch.randn (self.n_types, device=self.device, requires_grad=True).float ())
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, *args) :
         batch_size = len(context_token_seqs)
@@ -169,15 +162,10 @@ class FETELStack(BaseResModel):
         cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output, entity_vecs), dim=1))
 
         cat_output = torch.cat((cat_output, el_probs.view(-1, 1)), dim=1)
-        l1_output = self.linear_map1 (cat_output)
-        l1_output = self.lin1_bn (F.relu (l1_output))
-        l2_output = self.linear_map2 (self.dropout_layer (l1_output))
-        l2_output = self.lin2_bn (F.relu (l2_output))
-        g = self.linear_map3 (self.dropout_layer (l2_output))  # (B, self.type_embed_dim)
-
-        # logits = torch.matmul(generate.view(-1, 1, self.type_embed_dim),
-        #                       self.type_embeddings.view(-1, self.type_embed_dim, self.n_types))  # TODO: (B, 1, D) x (B, D, K)
-        logits = g.view (-1, self.n_types)  # (B, n_class)
+        g = self.g_mode (cat_output)
+        c = self.copy_mode (cat_output)
+        c = F.relu (c * entity_vecs + self.global_score.view (-1, 1))
+        logits = self.beta * g.view (-1, self.n_types) + (1 - self.beta) * c.view (-1, self.n_types)  # (B, n_class)
         return logits
 
 
