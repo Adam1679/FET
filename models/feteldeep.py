@@ -164,7 +164,7 @@ class FETELStack(BaseResModel):
         cat_output = torch.cat((cat_output, el_probs.view(-1, 1)), dim=1)
         g = self.g_mode (cat_output)
         c = self.copy_mode (cat_output)
-        c = F.relu (c * entity_vecs + self.global_score.view (-1, 1))
+        c = F.relu (c * entity_vecs + self.global_score.view (1, -1))
         logits = self.beta * g.view (-1, self.n_types) + (1 - self.beta) * c.view (-1, self.n_types)  # (B, n_class)
         return logits
 
