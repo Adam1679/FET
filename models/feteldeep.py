@@ -122,129 +122,19 @@ class BaseResModel(nn.Module):
     def forward(self, *input_args):
         raise NotImplementedError
 
-
-class FETELStack(BaseResModel):
-    def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
-                 type_embed_dim, dropout=0.5, use_mlp=False, mlp_hidden_dim=None, concat_lstm=False):
-        super(FETELStack, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
-                                         context_lstm_hidden_dim, type_embed_dim, dropout=dropout,
-                                         concat_lstm=concat_lstm)
-        self.use_mlp = use_mlp
-        # self.dropout_layer = nn.Dropout(dropout)
-
-        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
-        if concat_lstm:
-            linear_map_input_dim += 2 * self.context_lstm_hidden_dim
-        if not self.use_mlp:
-            self.linear_map = nn.Linear(linear_map_input_dim, type_embed_dim, bias=False)
-        else:
-            mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-            self.linear_map1 = nn.Linear(linear_map_input_dim, mlp_hidden_dim)
-            self.lin1_bn = nn.BatchNorm1d(mlp_hidden_dim)
-            self.linear_map2 = nn.Linear(mlp_hidden_dim, mlp_hidden_dim)
-            self.lin2_bn = nn.BatchNorm1d(mlp_hidden_dim)
-            self.linear_map3 = nn.Linear(mlp_hidden_dim, type_embed_dim)
-
-    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, *args) :
-        """
-
-        :param context_token_seqs: List[List[Int]], len(List) = batch_size  sent_tokens[:pos_beg] + [mention_token_id] + sent_tokens[pos_end:]
-        :param mention_token_idxs: List[Int], len(List) = batch_size： mention在句子里面的starting index
-        :param mstr_token_seqs: List[List[Int]], len(List) = batch_size, List里面的元素个数非常的少
-        :param entity_vecs: (batch_size x 128) linking results, multihot vector
-        :param el_probs: (batch_size,) linking score
-        :return:
-        """
-        batch_size = len(context_token_seqs)
-
-        context_token_seqs, seq_lens, mention_token_idxs, back_idxs = modelutils.get_len_sorted_context_seqs_input(
-            self.device, context_token_seqs, mention_token_idxs)
-
-        context_lstm_output = self.get_context_lstm_output(context_token_seqs, seq_lens, mention_token_idxs, batch_size) # (B, D) or (B, 2*D)
-
-        # step 1: context
-        context_lstm_output = context_lstm_output[back_idxs]
-
-        # step 2: mention str vector
-        name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
-
-        # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output, entity_vecs), dim=1))
-
-        cat_output = torch.cat((cat_output, el_probs.view(-1, 1)), dim=1)
-
-        if not self.use_mlp:
-            mention_reps = self.linear_map(self.dropout_layer(cat_output))
-
-        else:
-            l1_output = self.linear_map1(cat_output)
-            l1_output = self.lin1_bn(F.relu(l1_output))
-            l2_output = self.linear_map2(self.dropout_layer(l1_output))
-            l2_output = self.lin2_bn(F.relu(l2_output))
-            mention_reps = self.linear_map3(self.dropout_layer(l2_output)) # (B, self.type_embed_dim)
-
-        logits = torch.matmul(mention_reps.view(-1, 1, self.type_embed_dim),
-                              self.type_embeddings.view(-1, self.type_embed_dim, self.n_types))  # TODO: (B, 1, D) x (B, D, K)
-        logits = logits.view(-1, self.n_types) #(B, n_class)
-        return logits
-
-
-class AttCopyMode (nn.Module) :
-    def __init__(self, input_size, emb_dim, n_type, dp=0.2, n_head=2, kdim=128) :
-        super ().__init__ ()
+class CopyMode(nn.Module):
+    def __init__(self, input_size, out_size, mlp_hidden_dim=None, dp=0.5) :
+        super().__init__()
         layers = []
-        mlp_hidden_dim = input_size // 2
+
+        mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
         layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
         layers.append (nn.ReLU ())
         layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-        layers.append (nn.Dropout (dp))
-        layers.append (nn.Linear (mlp_hidden_dim, kdim * n_head, bias=False))
-        self.kdim = kdim
-        self.query = nn.Sequential (*layers)
-        self.value = nn.Linear (emb_dim, emb_dim * n_head)
-        self.key = nn.Linear (emb_dim, kdim * n_head)
-        self.out = nn.Sequential (nn.Linear (emb_dim * n_head + 1, n_type), nn.ReLU ())
-        self.dp = nn.Dropout (dp)
-        self.n_head = n_head
-        self.n_type = n_type
-        self.emb_dim = emb_dim
-
-    def forward(self, x, entity_vecs, type_emb, prob) :
-        bs, n_type = entity_vecs.size ()
-        q = self.query (x).view (bs, self.n_head, self.kdim)  # (B x n_head x kdim)
-        k = self.key (type_emb.transpose (0, 1)).view (self.n_type, self.n_head, self.kdim).transpose (0,
-                                                                                                       1)  # (n_head x n_type x kdim)
-        v = self.value (type_emb.transpose (0, 1)).view (self.n_type, self.n_head, self.emb_dim).transpose (0,
-                                                                                                            1)  # (n_head x n_type x emb_dim)
-        att = torch.matmul (q.unsqueeze (2) / self.kdim ** 2,
-                            k.transpose (1, 2).unsqueeze (0)).squeeze ()  # (B x n_head x n_type)
-        att.masked_fill (~entity_vecs.bool ().unsqueeze (1), -1e9)  # (B x n_head x n_type)
-        att = self.dp (att.softmax (dim=2))
-
-        entity_vecs2 = entity_vecs.sum (dim=1)
-        for i in range (bs) :
-            if entity_vecs2[i] == 0 :
-                att[i] = 0.
-        emb = torch.matmul (att.unsqueeze (2), v.unsqueeze (0)).view (bs, -1)  # (B, n_head x emb_dim)
-        emb = torch.cat ((emb, prob.unsqueeze (1)), dim=1)
-        return self.out (emb)
-
-class CopyMode(nn.Module):
-    def __init__(self, input_size, out_size, use_mlp=False, mlp_hidden_dim=None, dp=0.5):
-        super().__init__()
-        layers = []
-        if not use_mlp :
-            layers.append (nn.Dropout(dp))
-            layers.append (nn.Linear (input_size, out_size, bias=False))
-        else :
-            mlp_hidden_dim = input_size // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-            layers.append (nn.Linear (input_size, mlp_hidden_dim, bias=False))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim, bias=False))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
+        layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim, bias=False))
+        layers.append (nn.ReLU ())
+        layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+        layers.append (nn.Linear (mlp_hidden_dim, out_size, bias=False))
 
         self.fc = nn.Sequential (*layers)
 
@@ -291,27 +181,6 @@ class GenerationMode(nn.Module):
         logits = logits.view (-1, n_types)
         return logits
 
-class AttenMentionEncoder (nn.Module) :
-    def __init__(self, emb_size) :
-        super ().__init__ ()
-        self.fc = nn.Linear (emb_size, 1)
-
-    def forward(self, device, embedding_layer, token_seqs) :
-        lens = [len (seq) for seq in token_seqs]
-        seqs = [torch.tensor (seq, dtype=torch.long, device=device) for seq in token_seqs]
-        seqs = torch.nn.utils.rnn.pad_sequence (seqs, batch_first=True,
-                                                padding_value=embedding_layer.padding_idx)
-        token_vecs = embedding_layer (seqs)  # (B, T, emb)
-        att = self.fc (token_vecs)  # B x T
-        mask = torch.ones_like (att, device=device).bool ()
-        for i in range (len (lens)) :
-            length = lens[i]
-            mask[i, :length] = False
-        att.masked_fill (mask, -1e9)
-        att = att.softmax (dim=1)
-
-        return (token_vecs * att).sum (dim=1)
-
 class NoName(BaseResModel):
     """could get 76% at least"""
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
@@ -321,9 +190,8 @@ class NoName(BaseResModel):
                  mlp_hidden_dim=None,
                  concat_lstm=False,
                  copy=True,
-                 feat_emb_dim=16,
-                 att_copy=False,
-                 type_emb_path=None) :
+                 alpha=0.5
+                 ) :
         super(NoName, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
@@ -333,20 +201,16 @@ class NoName(BaseResModel):
             linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         hidden_size = 512
         layers = []
-        if not use_mlp :
-            layers.append (nn.Dropout (dropout))
-            layers.append (nn.Linear (linear_map_input_dim, type_embed_dim, bias=False))
-        else :
-            mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-            layers.append (nn.Linear (linear_map_input_dim, mlp_hidden_dim))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dropout))
-            layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dropout))
-            layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
+        mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
+        layers.append (nn.Linear (linear_map_input_dim, mlp_hidden_dim))
+        layers.append (nn.ReLU ())
+        layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+        layers.append (nn.Dropout (dropout))
+        layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
+        layers.append (nn.ReLU ())
+        layers.append (nn.BatchNorm1d (mlp_hidden_dim))
+        layers.append (nn.Dropout (dropout))
+        layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
 
         self.encoder = nn.Sequential (*layers)
         self.generate_mode = nn.Linear (hidden_size, self.n_types)
@@ -360,7 +224,7 @@ class NoName(BaseResModel):
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, self.n_types),
                                         )
-        self.word_emb = AttenMentionEncoder (self.word_vec_dim)
+        self.alpha = alpha
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
@@ -393,29 +257,30 @@ class NoName(BaseResModel):
         if self.copy :
             c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
             c = F.relu (c)
-            logits = c + g
+            logits = self.alpha * c + (1 - self.alpha) * g
         else :
             logits = g
         logits = logits.view(-1, self.n_types)
         return logits
 
+class NoName3 (BaseResModel) :
+    """could get 76.4% at least"""
 
-class AttNoName (BaseResModel) :
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
                  type_embed_dim,
                  dropout=0.5,
                  use_mlp=False,
                  mlp_hidden_dim=None,
                  concat_lstm=False,
-                 copy=True,
-                 att_copy=False,
-                 type_emb_path=None) :
-        super (AttNoName, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
-                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
-        assert self.context_lstm_hidden_dim == self.word_vec_dim, "Transformer Needs ContextDim == WordEmb"
+                 copy=True, alpha=0.5) :
+        super (NoName3, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
+                                        context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
         self.copy = copy
-        linear_map_input_dim = self.context_lstm_hidden_dim + self.word_vec_dim
+        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
+        # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
+        if concat_lstm :
+            linear_map_input_dim += 2 * self.context_lstm_hidden_dim
         hidden_size = 512
         layers = []
         mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
@@ -428,99 +293,6 @@ class AttNoName (BaseResModel) :
         layers.append (nn.BatchNorm1d (mlp_hidden_dim))
         layers.append (nn.Dropout (dropout))
         layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
-
-        self.encoder = nn.Sequential (*layers)
-        self.generate_mode = nn.Linear (hidden_size, self.n_types)
-        self.copy_mode = nn.Sequential (nn.Linear (self.n_types + 1, hidden_size),
-                                        nn.ReLU (),
-                                        nn.BatchNorm1d (hidden_size),
-                                        nn.Dropout (dropout),
-                                        nn.Linear (hidden_size, hidden_size),
-                                        nn.ReLU (),
-                                        nn.BatchNorm1d (hidden_size),
-                                        nn.Dropout (dropout),
-                                        nn.Linear (hidden_size, self.n_types),
-                                        )
-        self.word_emb = AttenMentionEncoder (self.word_vec_dim)
-
-    def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
-        """
-
-        :param context_token_seqs: List[List[Int]], len(List) = batch_size  sent_tokens[:pos_beg] + [mention_token_id] + sent_tokens[pos_end:]
-        :param mention_token_idxs: List[Int], len(List) = batch_size： mention在句子里面的starting index
-        :param mstr_token_seqs: List[List[Int]], len(List) = batch_size, List里面的元素个数非常的少
-        :param entity_vecs: (batch_size x 128) linking results, multihot vector
-        :param el_probs: (batch_size,) linking score
-        :return:
-        """
-        batch_size = len (context_token_seqs)
-        context_token_seqs, seq_lens, mention_token_idxs, back_idxs = modelutils.get_len_sorted_context_seqs_input (
-            self.device, context_token_seqs, mention_token_idxs)
-
-        context_lstm_output = self.get_context_transformer_output (context_token_seqs, seq_lens, mention_token_idxs,
-                                                                   batch_size)  # (B, D) or (B, 2*D)
-
-        # step 1: context
-        context_lstm_output = context_lstm_output[back_idxs]  # (256, 500)
-
-        # step 2: mention str vector
-        # (256, 300)
-        # name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
-        #                                              mstr_token_seqs)  # (B, D) or (B, 2*D)
-        name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
-
-        # step 3: entity_vecs: the entity linking results
-        cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
-        state = self.encoder (cat_output)  # (B, D)
-        g = self.generate_mode (state)  # (B, type_dim)
-        if self.copy :
-            c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
-            c = F.relu (c)
-            logits = c + g
-        else :
-            logits = g
-        logits = logits.view (-1, self.n_types)
-        return logits
-
-
-class NoName3 (BaseResModel) :
-    """could get 76.4% at least"""
-
-    def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
-                 type_embed_dim,
-                 dropout=0.5,
-                 use_mlp=False,
-                 mlp_hidden_dim=None,
-                 concat_lstm=False,
-                 copy=True,
-                 feat_emb_dim=16,
-                 att_copy=False,
-                 type_emb_path=None) :
-        super (NoName3, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
-                                        context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
-        self.use_mlp = use_mlp
-        self.copy = copy
-        linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim
-        # linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
-        if concat_lstm :
-            linear_map_input_dim += 2 * self.context_lstm_hidden_dim
-        hidden_size = 512
-        layers = []
-        if not use_mlp :
-            layers.append (nn.Dropout (dropout))
-            layers.append (nn.Linear (linear_map_input_dim, type_embed_dim, bias=False))
-            # layers.append (nn.Tanh ())
-        else :
-            mlp_hidden_dim = linear_map_input_dim // 2 if mlp_hidden_dim is None else mlp_hidden_dim
-            layers.append (nn.Linear (linear_map_input_dim, mlp_hidden_dim))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dropout))
-            layers.append (nn.Linear (mlp_hidden_dim, mlp_hidden_dim))
-            layers.append (nn.ReLU ())
-            layers.append (nn.BatchNorm1d (mlp_hidden_dim))
-            layers.append (nn.Dropout (dropout))
-            layers.append (nn.Linear (mlp_hidden_dim, hidden_size))
 
         self.encoder = nn.Sequential (*layers)
         if self.copy :
@@ -536,7 +308,7 @@ class NoName3 (BaseResModel) :
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, self.n_types),
                                         )
-        self.word_emb = AttenMentionEncoder (self.word_vec_dim)
+        self.alpha = alpha
 
     def _load_type_emb(self, path, type_id_dict) :
         type2vec = {}
@@ -580,7 +352,6 @@ class NoName3 (BaseResModel) :
         # (256, 300)
         name_output = modelutils.get_avg_token_vecs (self.device, self.embedding_layer,
                                                      mstr_token_seqs)  # (B, D) or (B, 2*D)
-        # name_output = self.word_emb (self.device, self.embedding_layer, mstr_token_seqs)  # (B, D) or (B, 2*D)
 
         # step 3: entity_vecs: the entity linking results
         cat_output = self.dropout_layer (torch.cat ((context_lstm_output, name_output), dim=1))
