@@ -19,7 +19,8 @@ def train_model(args):
     context_lstm_hidden_dim = 250
     type_embed_dim = 500
     pred_mlp_hdim = 500
-    n_iter = 15
+    # n_iter = 15
+    n_iter = 8
     lr = 0.001
     nil_rate = 0.5
     use_mlp = True
