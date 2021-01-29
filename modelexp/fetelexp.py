@@ -271,8 +271,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None) :
     logging.info('result_file={}'.format(results_file))
     logging.info(
-        'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={}'.format(
-            type_embed_dim, context_lstm_hidden_dim, pred_mlp_hdim, nil_rate, single_type_path))
+        'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={} alpha={}'.format (
+            type_embed_dim, context_lstm_hidden_dim, pred_mlp_hdim, nil_rate, single_type_path, args.alpha))
     logging.info('rand_per={} per_pen={}'.format(rand_per, per_penalty))
     logging.info('stack_lstm={} cat_lstm={}'.format(stack_lstm, concat_lstm))
 
