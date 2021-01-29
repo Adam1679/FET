@@ -133,11 +133,11 @@ class FETELStack(BaseResModel):
                                      nn.ReLU (),
                                      nn.BatchNorm1d (mlp_hidden_dim),
                                      nn.Dropout (dropout),
-                                     nn.Linear (hidden_size, hidden_size),
+                                     nn.Linear (mlp_hidden_dim, mlp_hidden_dim),
                                      nn.ReLU (),
-                                     nn.BatchNorm1d (hidden_size),
+                                     nn.BatchNorm1d (mlp_hidden_dim),
                                      nn.Dropout (dropout),
-                                     nn.Linear (hidden_size, self.n_types),
+                                     nn.Linear (mlp_hidden_dim, self.n_types),
                                      )
 
         self.copy_mode = copy.deepcopy (self.g_mode)
