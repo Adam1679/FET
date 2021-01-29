@@ -81,6 +81,7 @@ if __name__ == '__main__':
     parser.add_argument ('--resume', '-r', type=str, default="")
     parser.add_argument ('--copy', '-c', action="store_false")
     parser.add_argument ('--eval', '-e', action="store_true")
+    parser.add_argument ('--alpha', '-a', default=0.5, type=float)
 
     args = parser.parse_args()
     torch.random.manual_seed(config.RANDOM_SEED)

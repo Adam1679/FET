@@ -281,12 +281,12 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         model = NoName (
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-            concat_lstm=concat_lstm, copy=args.copy)
+            concat_lstm=concat_lstm, copy=args.copy, alpha=args.alpha)
 
         # model = NoName3 (
         #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
         #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
+        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path, alpha=args.alpha)
 
     else:
         model = None

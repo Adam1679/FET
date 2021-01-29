@@ -190,6 +190,7 @@ class NoName(BaseResModel):
                  mlp_hidden_dim=None,
                  concat_lstm=False,
                  copy=True,
+                 alpha=0.5
                  ) :
         super(NoName, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
                                          context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
@@ -223,6 +224,7 @@ class NoName(BaseResModel):
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, self.n_types),
                                         )
+        self.alpha = alpha
 
     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, pos_feats) :
         """
@@ -255,7 +257,7 @@ class NoName(BaseResModel):
         if self.copy :
             c = self.copy_mode (torch.cat ((entity_vecs, el_probs.unsqueeze (1)), dim=1))  # (B, D)
             c = F.relu (c)
-            logits = c + g
+            logits = self.alpha * c + (1 - self.alpha) * g
         else :
             logits = g
         logits = logits.view(-1, self.n_types)
@@ -270,10 +272,7 @@ class NoName3 (BaseResModel) :
                  use_mlp=False,
                  mlp_hidden_dim=None,
                  concat_lstm=False,
-                 copy=True,
-                 feat_emb_dim=16,
-                 att_copy=False,
-                 type_emb_path=None) :
+                 copy=True, alpha=0.5) :
         super (NoName3, self).__init__ (device, type_vocab, type_id_dict, embedding_layer,
                                         context_lstm_hidden_dim, type_embed_dim, dropout, concat_lstm)
         self.use_mlp = use_mlp
@@ -309,6 +308,7 @@ class NoName3 (BaseResModel) :
                                         nn.Dropout (dropout),
                                         nn.Linear (hidden_size, self.n_types),
                                         )
+        self.alpha = alpha
 
     def _load_type_emb(self, path, type_id_dict) :
         type2vec = {}
