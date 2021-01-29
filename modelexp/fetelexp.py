@@ -268,7 +268,7 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
                 use_mlp=False, pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
-                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None, type_emb_path=None) :
+                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None) :
     logging.info('result_file={}'.format(results_file))
     logging.info(
         'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={}'.format(
@@ -281,26 +281,13 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
         model = NoName (
             device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
             type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-            concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
-        # model = AttNoName (
-        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
+            concat_lstm=concat_lstm, copy=args.copy)
+
         # model = NoName3 (
         #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
         #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
         #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
-        # model = NoName2 (
-        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-        #     type_embed_dim=type_embed_dim, dropout=dropout, use_mlp=use_mlp, mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm, copy=args.copy, type_emb_path=type_emb_path)
-        # model = FETELStack (
-        #     device, gres.type_vocab, gres.type_id_dict, gres.embedding_layer, context_lstm_hidden_dim,
-        #     type_embed_dim=type_embed_dim,
-        #     dropout=dropout,
-        #     use_mlp=use_mlp,
-        #     mlp_hidden_dim=pred_mlp_hdim,
-        #     concat_lstm=concat_lstm)
+
     else:
         model = None
     if device.type == 'cuda':

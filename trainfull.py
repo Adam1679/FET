@@ -41,7 +41,6 @@ def train_model(args):
     dev_data_pkl = data_prefix + '-dev.pkl'
     train_data_pkl = data_prefix + '-train.pkl'
 
-    type_emb_path = datafiles['type-emb']
     if args.copy :
         save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.copy.pl'.format (
             os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
@@ -70,8 +69,7 @@ def train_model(args):
                           context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
                           dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
                           save_model_file=save_model_file, nil_rate=nil_rate, single_type_path=single_type_path,
-                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file,
-                          type_emb_path=type_emb_path)
+                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file)
 
 
 if __name__ == '__main__':
