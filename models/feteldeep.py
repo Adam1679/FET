@@ -119,6 +119,56 @@ class BaseResModel(nn.Module):
         raise NotImplementedError
 
 
+# class FETELStack(BaseResModel):
+#     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
+#                  type_embed_dim, dropout=0.5, beta=0.5) :
+#         super(FETELStack, self).__init__(device, type_vocab, type_id_dict, embedding_layer,
+#                                          context_lstm_hidden_dim, type_embed_dim, dropout=dropout)
+#         # self.dropout_layer = nn.Dropout(dropout)
+#
+#         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
+#         mlp_hidden_dim = linear_map_input_dim // 2
+#         hidden_size = 250
+#         self.g_mode = nn.Sequential (nn.Linear (linear_map_input_dim, mlp_hidden_dim),
+#                                      nn.ReLU (),
+#                                      nn.BatchNorm1d (mlp_hidden_dim),
+#                                      nn.Dropout (dropout),
+#                                      nn.Linear (mlp_hidden_dim, mlp_hidden_dim),
+#                                      nn.ReLU (),
+#                                      nn.BatchNorm1d (mlp_hidden_dim),
+#                                      nn.Dropout (dropout),
+#                                      nn.Linear (mlp_hidden_dim, self.n_types),
+#                                      )
+#
+#         self.copy_mode = copy.deepcopy (self.g_mode)
+#         self.beta = beta
+#         self.global_score = nn.Parameter (torch.randn (self.n_types, device=self.device, requires_grad=True).float ())
+#
+#     def forward(self, context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, *args) :
+#         batch_size = len(context_token_seqs)
+#
+#         context_token_seqs, seq_lens, mention_token_idxs, back_idxs = modelutils.get_len_sorted_context_seqs_input(
+#             self.device, context_token_seqs, mention_token_idxs)
+#
+#         context_lstm_output = self.get_context_lstm_output(context_token_seqs, seq_lens, mention_token_idxs, batch_size) # (B, D) or (B, 2*D)
+#
+#         # step 1: context
+#         context_lstm_output = context_lstm_output[back_idxs]
+#
+#         # step 2: mention str vector
+#         name_output = modelutils.get_avg_token_vecs(self.device, self.embedding_layer, mstr_token_seqs) # (B, D) or (B, 2*D)
+#
+#         # step 3: entity_vecs: the entity linking results
+#         cat_output = self.dropout_layer(torch.cat((context_lstm_output, name_output, entity_vecs), dim=1))
+#
+#         cat_output = torch.cat((cat_output, el_probs.view(-1, 1)), dim=1)
+#         g = self.g_mode (cat_output)
+#         c = self.copy_mode (cat_output)
+#         c = F.relu (c * entity_vecs + self.global_score.view (1, -1))
+#         logits = self.beta * g.view (-1, self.n_types) + (1 - self.beta) * c.view (-1, self.n_types)  # (B, n_class)
+#         return logits
+
+
 class FETELStack(BaseResModel):
     def __init__(self, device, type_vocab, type_id_dict, embedding_layer: nn.Embedding, context_lstm_hidden_dim,
                  type_embed_dim, dropout=0.5, beta=0.5) :
@@ -165,7 +215,4 @@ class FETELStack(BaseResModel):
         g = self.g_mode (cat_output)
         c = self.copy_mode (cat_output)
         c = F.relu (c * entity_vecs + self.global_score.view (1, -1))
-        logits = self.beta * g.view (-1, self.n_types) + (1 - self.beta) * c.view (-1, self.n_types)  # (B, n_class)
-        return logits
-
-
+        return g.view (-1, self.n_types), c.view (-1, self.n_types)

@@ -376,8 +376,8 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
                     entity_vecs = None
                 logits = model (context_token_seqs, mention_token_idxs, mstr_token_seqs, entity_vecs, el_probs, feats)
                 if isinstance (logits, tuple) :
-                    loss = model.get_loss (y_true, logits[0], person_loss_vec=person_loss_vec) + \
-                           model.get_loss (y_true, logits[1], person_loss_vec=person_loss_vec)
+                    loss = args.beta * model.get_loss (y_true, logits[0], person_loss_vec=person_loss_vec) + \
+                           (1 - args.beta) * model.get_loss (y_true, logits[1], person_loss_vec=person_loss_vec)
                 else :
                     loss = model.get_loss (y_true, logits, person_loss_vec=person_loss_vec)
 
