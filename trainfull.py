@@ -29,8 +29,7 @@ def train_model(args):
     concat_lstm = False
     per_pen = 2.0
 
-    # dataset = 'figer'
-    dataset = 'bbn'
+    dataset = args.dataset
     datafiles = config.FIGER_FILES if dataset == 'figer' else config.BBN_FILES
     single_type_path = True if dataset == 'bbn' else False
     test_mentions_file = datafiles['fetel-test-mentions']
@@ -79,6 +78,7 @@ if __name__ == '__main__':
     parser.add_argument ('--resume', '-r', type=str, default="")
     parser.add_argument ('--eval', '-e', action="store_true")
     parser.add_argument ('--beta', '-b', default=1.0, type=float, )
+    parser.add_argument ('--dataset', '-d', choices=['bnn', 'figer'], default='figer', type=str)
 
     args = parser.parse_args()
     torch.random.manual_seed(config.RANDOM_SEED)
