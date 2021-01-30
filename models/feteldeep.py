@@ -17,7 +17,7 @@ def inference_labels_full(l1_type_indices, child_type_vecs, scores, extra_label_
     return label_preds
 
 
-def inference_labels(l1_type_indices, child_type_vecs, scores, multilabel) :
+def inference_labels(l1_type_indices, child_type_vecs, scores) :
     l1_type_scores = scores[:, l1_type_indices]
     tmp_indices = np.argmax(l1_type_scores, axis=1)
     max_l1_indices = l1_type_indices[tmp_indices]
