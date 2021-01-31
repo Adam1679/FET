@@ -78,7 +78,7 @@ if __name__ == '__main__':
     parser.add_argument ('--resume', '-r', type=str, default="")
     parser.add_argument ('--eval', '-e', action="store_true")
     parser.add_argument ('--beta', '-b', default=1.0, type=float, )
-    parser.add_argument ('--dataset', '-d', choices=['bnn', 'figer'], default='figer', type=str)
+    parser.add_argument ('--dataset', '-d', choices=['bbn', 'figer'], default='figer', type=str)
 
     args = parser.parse_args()
     torch.random.manual_seed(config.RANDOM_SEED)
