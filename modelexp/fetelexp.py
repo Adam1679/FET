@@ -267,8 +267,8 @@ def get_type_vec(gres: exputils.GlobalRes,
 def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: ELDirectEntityVec, train_samples_pkl,
                 dev_samples_pkl, test_mentions_file, test_sents_file, test_noel_preds_file, type_embed_dim,
                 context_lstm_hidden_dim, learning_rate, batch_size, n_iter, dropout, rand_per, per_penalty,
-                use_mlp=False, pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
-                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None, type_emb_path=None) :
+                pred_mlp_hdim=None, save_model_file=None, nil_rate=0.5,
+                single_type_path=False, stack_lstm=False, concat_lstm=False, results_file=None) :
     logging.info('result_file={}'.format(results_file))
     logging.info(
         'type_embed_dim={} cxt_lstm_hidden_dim={} pmlp_hdim={} nil_rate={} single_type_path={} beta={}'.format (
@@ -334,7 +334,6 @@ def train_fetel(args, writer, device, gres: exputils.GlobalRes, el_entityvec: EL
     nelement = sum ([p.nelement () for p in model.parameters () if p.requires_grad])
     logging.info ("number of training params is {}".format (nelement))
     scheduler = torch.optim.lr_scheduler.StepLR (optimizer, step_size=n_batches, gamma=lr_gamma)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR (optimizer, milestones=[5 * n_batches, 10 * n_batches], gamma=0.1)
     losses = list()
     best_dev_acc = -1
     logging.info('{} steps, {} steps per iter, lr_decay={}, start training ...'.format(
@@ -476,10 +475,8 @@ def eval_fetel(args, device, gres: exputils.GlobalRes, model, samples: List[Mode
          ) = exputils.get_mstr_cxt_batch_input(batch_samples)
         entity_vecs_batch, el_probs_batch = None, None
         if use_entity_vecs:
-            # entity_vecs, el_sgns = __get_entity_vecs_for_samples(el_entityvec, batch_samples, noel_pred_results)
             entity_vecs_batch = torch.tensor(entity_vecs[batch_beg:batch_end], dtype=torch.float32,
                                              device=device)
-            # el_sgns_batch = torch.tensor(el_sgns[batch_beg:batch_end], dtype=torch.float32, device=device)
             el_probs_batch = torch.tensor (el_probs[batch_beg :batch_end], dtype=torch.float32, device=device)
         with torch.no_grad():
             logits = model(context_token_seqs, mention_token_idxs, mstr_token_seqs,

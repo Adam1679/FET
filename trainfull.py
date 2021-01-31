@@ -23,7 +23,6 @@ def train_model(args):
     n_iter = 8
     lr = 0.001
     nil_rate = 0.5
-    use_mlp = True
     rand_per = True
     stack_lstm = True
     concat_lstm = False
@@ -40,7 +39,6 @@ def train_model(args):
     dev_data_pkl = data_prefix + '-dev.pkl'
     train_data_pkl = data_prefix + '-train.pkl'
 
-    type_emb_path = datafiles['type-emb']
     save_model_file = os.path.join (config.DATA_DIR, 'result/model-{}-{}.pl'.format (
         os.path.splitext (os.path.basename (test_mentions_file))[0], dataset))
     results_file = os.path.join (config.DATA_DIR, 'result/metric-{}-{}.txt'.format (
@@ -63,10 +61,9 @@ def train_model(args):
                           datafiles['fetel-test-sents'],
                           test_noel_preds_file=noel_preds_file, type_embed_dim=type_embed_dim,
                           context_lstm_hidden_dim=context_lstm_hidden_dim, learning_rate=lr, batch_size=batch_size, n_iter=n_iter,
-                          dropout=dropout, rand_per=rand_per, per_penalty=per_pen, use_mlp=use_mlp, pred_mlp_hdim=pred_mlp_hdim,
+                          dropout=dropout, rand_per=rand_per, per_penalty=per_pen, pred_mlp_hdim=pred_mlp_hdim,
                           save_model_file=save_model_file, nil_rate=nil_rate, single_type_path=single_type_path,
-                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file,
-                          type_emb_path=type_emb_path)
+                          stack_lstm=stack_lstm, concat_lstm=concat_lstm, results_file=results_file)
 
 
 if __name__ == '__main__':

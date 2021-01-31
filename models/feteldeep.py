@@ -178,7 +178,6 @@ class FETELStack(BaseResModel):
 
         linear_map_input_dim = 2 * self.context_lstm_hidden_dim + self.word_vec_dim + self.n_types + 1
         mlp_hidden_dim = linear_map_input_dim // 2
-        hidden_size = 250
         self.g_mode = nn.Sequential (nn.Linear (linear_map_input_dim, mlp_hidden_dim),
                                      nn.ReLU (),
                                      nn.BatchNorm1d (mlp_hidden_dim),
