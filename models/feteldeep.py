@@ -105,10 +105,10 @@ class BaseResModel(nn.Module):
         loss = torch.mean (torch.add (tmp1, tmp2))
         return loss
 
-    def inference(self, scores, is_torch_tensor=True, multilabel=True) :
+    def inference(self, scores, is_torch_tensor=True) :
         if is_torch_tensor:
             scores = scores.data.cpu().numpy()
-        return inference_labels (self.l1_type_indices, self.child_type_vecs, scores, multilabel)
+        return inference_labels (self.l1_type_indices, self.child_type_vecs, scores)
 
     def inference_full(self, logits, extra_label_thres=0.5, is_torch_tensor=True):
         if is_torch_tensor:
